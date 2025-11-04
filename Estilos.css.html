@@ -96,9 +96,29 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   }
 
+  /* (MODIFICADO) Estilo de botón de aptitud con flechas */
   #btn-submit-aptitud-manual {
-    font-size: 20px
+    font-size: 20px;
+    position: relative;
+    padding-left: 30px; /* Espacio para la flecha */
+    padding-right: 30px; /* Espacio para la flecha */
   }
+
+  #btn-submit-aptitud-manual::before {
+    content: '» ';
+    position: absolute;
+    left: 15px;
+    font-weight: bold;
+  }
+  
+  #btn-submit-aptitud-manual::after {
+    content: ' «';
+    position: absolute;
+    right: 15px;
+    font-weight: bold;
+  }
+  /* (FIN MODIFICACIÓN) */
+
 
   label {
     display: block;
@@ -148,6 +168,15 @@
     color: #777;
     margin-bottom: 15px;
   }
+  
+  /* (NUEVO) Estilo para errores inline (reemplaza alerts) */
+  .inline-error {
+    color: var(--color-error);
+    font-weight: bold;
+    font-size: 0.9em;
+    margin-top: 5px;
+    margin-bottom: 10px;
+  }
 
   .loader-archivo {
     display: none;
@@ -176,7 +205,11 @@
   .btn-remover,
   #btn-limpiar-form,
   #btn-cancelar-upload,
-  #btn-pagar-pendiente {
+  #btn-pagar-pendiente,
+  .btn-editar, /* (NUEVO) */
+  .btn-guardar, /* (NUEVO) */
+  .btn-cancelar /* (NUEVO) */
+   {
     background-color: var(--color-principal);
     color: white;
     padding: 10px 15px;
@@ -194,9 +227,53 @@
   .btn-dinamico:hover,
   #btn-limpiar-form:hover,
   #btn-cancelar-upload:hover,
-  #btn-pagar-pendiente:hover {
+  #btn-pagar-pendiente:hover,
+  .btn-editar:hover,
+  .btn-guardar:hover,
+  .btn-cancelar:hover {
     background-color: #0056b3;
   }
+  
+  /* (NUEVO) Estilos para botones de Edición */
+  .btn-editar {
+     background-color: #ffc107; /* Amarillo */
+     color: #333;
+     font-weight: bold;
+  }
+  .btn-editar:hover {
+     background-color: #e0a800;
+  }
+  .btn-guardar {
+    background-color: var(--color-exito); /* Verde */
+  }
+  .btn-guardar:hover {
+    background-color: #218838;
+  }
+  .btn-cancelar {
+    background-color: #6c757d; /* Gris */
+  }
+  .btn-cancelar:hover {
+    background-color: #5a6268;
+  }
+  
+  /* (NUEVO) Sección de Edición */
+  #editar-info-seccion {
+    border: 2px dashed var(--color-principal);
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 5px;
+    background: #f8f9fa;
+  }
+  #editar-info-seccion h3 {
+     background-color: var(--color-principal);
+  }
+   /* (NUEVO) Inputs deshabilitados en modo edición */
+  #editar-info-seccion input[readonly] {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+    color: #6c757d;
+  }
+  
 
   #btn-limpiar-form {
     background-color: rgba(220, 53, 69, 0.8);

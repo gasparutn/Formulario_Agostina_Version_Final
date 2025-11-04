@@ -2,8 +2,7 @@
 // Las constantes (COL_EMAIL, COL_ESTADO_PAGO, etc.) se leen
 // automáticamente desde el archivo 'Constantes.gs'.
 //
-// LA LÓGICA DE MERCADO PAGO (TOKEN, URL, WEBHOOKS, PREFERENCIAS)
-// SE MOVIÓ A PagosMP.gs
+// (MODIFICADO) TODA LA LÓGICA DE MERCADO PAGO HA SIDO ELIMINADA.
 // =========================================================
 
 /**
@@ -24,16 +23,19 @@ function paso1_registrarRegistro(datos) {
       datos.estadoPago = "Pendiente (Efectivo)";
     } else if (datos.metodoPago === 'Transferencia') {
       datos.estadoPago = "Pendiente (Transferencia)"; // NUEVO
-      // (Punto 28) Ajuste de "Pago en Cuotas" a "Pago en 3 Cuotas" (o mantener "Pago en Cuotas" si el valor enviado no cambió)
     } else if (datos.metodoPago === 'Pago en Cuotas') {
       datos.estadoPago = `Pendiente (${datos.cantidadCuotas} Cuotas)`; // (datos.cantidadCuotas será 3)
-    } else { // 'Pago 1 Cuota Deb/Cred MP(Total)'
-      datos.estadoPago = "Pendiente";
+    } else { 
+      // Fallback por si algún método de MP quedó cacheado (ya no debería pasar)
+      datos.estadoPago = "Pendiente (Transferencia)";
     }
 
     // (Punto 12) Si es un hermano completando, llamamos a una función diferente
     if (datos.esHermanoCompletando === true) {
+      // (MODIFICADO) Se pasa 'datos' directamente
       const respuestaUpdate = actualizarDatosHermano(datos);
+      // Asignar datos de nombre/apellido a la respuesta para el 'paso2'
+      respuestaUpdate.datos = datos; 
       return respuestaUpdate;
     } else {
       // Si es registro normal, llamamos a registrarDatos (que ahora maneja hermanos)
@@ -65,10 +67,9 @@ function obtenerPrecioDesdeConfig(metodoPago, cantidadCuotasStr, hojaConfig) {
     const precioTotal = hojaConfig.getRange("B14").getValue();
 
     if (metodoPago === 'Pago en Cuotas') {
-      precio = precioCuota;
-      montoAPagar = precio * (parseInt(cantidadCuotasStr) || 0);
-    } else if (metodoPago === 'Pago 1 Cuota Deb/Cred MP(Total)') {
-      precio = precioTotal;
+      // (MODIFICADO) Precio ahora es el total de cuotas, monto a pagar también.
+      const numCuotas = parseInt(cantidadCuotasStr) || 3;
+      precio = precioCuota * numCuotas;
       montoAPagar = precio;
     } else if (metodoPago === 'Pago Efectivo (Adm del Club)' || metodoPago === 'Transferencia') {
       precio = precioTotal;
@@ -79,8 +80,8 @@ function obtenerPrecioDesdeConfig(metodoPago, cantidadCuotasStr, hojaConfig) {
     if (precio === 0 && precioTotal > 0) {
       precio = precioTotal;
     }
-    if (montoAPagar === 0 && precio > 0 && (metodoPago === 'Pago Efectivo (Adm del Club)' || metodoPago === 'Transferencia')) {
-      montoAPagar = precio;
+    if (montoAPagar === 0 && precio > 0) {
+       montoAPagar = precio;
     }
 
     return { precio, montoAPagar };
@@ -167,7 +168,7 @@ function actualizarDatosHermano(datos) {
     datos.nombre = hojaRegistro.getRange(fila, COL_NOMBRE).getValue();
     datos.apellido = hojaRegistro.getRange(fila, COL_APELLIDO).getValue();
 
-    return { status: 'OK_REGISTRO', message: '¡Registro de Hermano Actualizado!', numeroDeTurno: hojaRegistro.getRange(fila, COL_NUMERO_TURNO).getValue(), datos: datos };
+    return { status: 'OK_REGISTRO', message: '¡Registro de Hermano Actualizado!', numeroDeTurno: hojaRegistro.getRange(fila, COL_NUMERO_TURNO).getValue() };
 
   } catch (e) {
     Logger.log("Error en actualizarDatosHermano: " + e.message);
@@ -179,102 +180,44 @@ function actualizarDatosHermano(datos) {
 
 
 /**
-* (PASO 2)
-* (Punto 10) Añadida lógica para "Transferencia"
-* (Punto 29) Emails automáticos desactivados
-* (Punto 40) Mensaje de "Pagos Desactivados" actualizado
-*
-* *** ¡¡MODIFICACIÓN!! Llama a crearPreferenciaDePago (que ahora vive en PagosMP.gs) ***
-*
+* (PASO 2 - MODIFICADO)
+* Eliminada toda la lógica de Mercado Pago.
+* Ahora solo envía confirmación para Efectivo, Transferencia o Cuotas (que son manuales).
 */
-function paso2_crearPagoYEmail(datos, numeroDeTurno) {
+function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null) {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const hojaConfig = ss.getSheetByName(NOMBRE_HOJA_CONFIG);
-    const pagosHabilitados = hojaConfig.getRange('B23').getValue();
+    const hermanos = hermanosRegistrados || [];
+    const dniRegistrado = datos.dni;
+    let message = "";
 
-    const hermanos = datos.hermanos || [];
-
-    if (pagosHabilitados === false) {
-      Logger.log(`Pagos deshabilitados (Config B23). Registrando sin link!!`);
-      // (Punto 29) Email automático desactivado.
-      // enviarEmailConfirmacion(datos, numeroDeTurno, null, 'registro_sin_pago'); // vive en Código.js
-      
-      return { status: 'OK_REGISTRO_SIN_PAGO', message: `¡¡Registo exitoso!! acérquese a la administración para pagar de forma presencial en efectivo o puede trasnferir y subir el comprobante.`, hermanos: hermanos };
+    if (datos.metodoPago === 'Pago Efectivo (Adm del Club)') {
+      message = `¡Registro guardado con éxito!!.<br>Su método de pago es: <strong>${datos.metodoPago}</strong>. acérquese a la Secretaría del Club de Martes a Sábados de 11hs a 18hs.`;
+    } else if (datos.metodoPago === 'Transferencia') {
+      message = `¡Registro guardado con éxito!!.<br>Su método de pago es: <strong>${datos.metodoPago}</strong>. Realice la transferencia y vuelva a ingresar con su DNI para subir el comprobante.`;
+    } else if (datos.metodoPago === 'Pago en Cuotas') {
+      message = `¡Registro guardado con éxito!!.<br>Su método de pago es: <strong>Pago en 3 Cuotas</strong>. Realice la transferencia de la primer cuota y vuelva a ingresar con su DNI para subir el comprobante.`;
+    } else {
+      message = `¡Registro guardado con éxito!!. Contacte a la administración para coordinar el pago.`;
     }
 
-    // (Punto 10) Manejar Efectivo y Transferencia
-    if (datos.metodoPago === 'Pago Efectivo (Adm del Club)' || datos.metodoPago === 'Transferencia') {
-      // (Punto 29) Email automático desactivado.
-      // enviarEmailConfirmacion(datos, numeroDeTurno); // vive en Código.js
-      let message = (datos.metodoPago === 'Transferencia') ?
-        '¡Registro exitoso! Por favor, realice la transferencia y luego suba el comprobante.' :
-        '¡Registro exitoso! Por favor, acérquese a la administración para completar el pago.';
-      return { status: 'OK_EFECTIVO', message: message, hermanos: hermanos };
-    }
+    // (Punto 29) Email automático desactivado.
+    // enviarEmailConfirmacion(datos, numeroDeTurno, null); // vive en Código.js
+    Logger.log(`(Paso 2) Registro exitoso para DNI ${dniRegistrado}. Método: ${datos.metodoPago}. Email desactivado.`);
 
-    // --- ¡¡INICIO DE BLOQUE MERCADO PAGO!! ---
-    // Estas llamadas ahora son a funciones en PagosMP.gs
-    
-    if (datos.metodoPago === 'Pago 1 Cuota Deb/Cred MP(Total)') {
-      let init_point;
-      try {
-        init_point = crearPreferenciaDePago(datos, null); // Llama a PagosMP.gs
-
-        if (!init_point || !init_point.startsWith('http')) {
-          return { status: 'OK_REGISTRO_SIN_LINK', message: init_point, hermanos: hermanos };
-        }
-      } catch (e) {
-        Logger.log("Error al crear preferencia de pago (total): " + e.message);
-        return { status: 'OK_REGISTRO_SIN_LINK', message: `¡Tu registro se guardó!! Pero falló la creación del link de pago.\nPor favor, contacte a la administración para abonar.`, hermanos: hermanos };
-      }
-
-      if (datos.email && init_point) {
-        // (Punto 29) Email automático desactivado.
-        // enviarEmailConfirmacion(datos, numeroDeTurno, init_point); // vive en Código.js
-      }
-      return { status: 'OK_PAGO', init_point: init_point, hermanos: hermanos };
-    }
-
-    if (datos.metodoPago === 'Pago en Cuotas') {
-      const cantidadCuotas = parseInt(datos.cantidadCuotas); // (Será 3)
-      const emailLinks = {};
-
-      try {
-        const cuotasDisponibles = (cantidadCuotas === 2) ? [1, 2] : [1, 2, 3]; // (Será 3)
-
-        for (let i = 1; i <= 3; i++) {
-          if (cuotasDisponibles.includes(i)) {
-            const link = crearPreferenciaDePago(datos, `C${i}`, cantidadCuotas); // Llama a PagosMP.gs
-            emailLinks[`link${i}`] = link;
-          } else {
-            emailLinks[`link${i}`] = 'N/A (No aplica)';
-          }
-        }
-
-      } catch (e) {
-        Logger.log("Error al crear preferencias de pago (cuotas): " + e.message);
-        return { status: 'OK_REGISTRO_SIN_LINK', message: `¡Tu registro se guardó!! Pero falló la creación de los links de pago.\nPor favor, contacte a la administración.`, hermanos: hermanos };
-      }
-
-      if (datos.email) {
-        // (Punto 29) Email automático desactivado.
-        // enviarEmailConfirmacion(datos, numeroDeTurno, emailLinks); // vive en Código.js
-      }
-
-      const primerLink = emailLinks.link1;
-      if (!primerLink || !primerLink.startsWith('http')) {
-        return { status: 'OK_REGISTRO_SIN_LINK', message: `¡Registro guardado!! ${primerLink}`, hermanos: hermanos };
-      }
-      return { status: 'OK_PAGO', init_point: primerLink, hermanos: hermanos };
-    }
-    // --- ¡¡FIN DE BLOQUE MERCADO PAGO!! ---
+    return { 
+      status: 'OK_EFECTIVO', // Usamos el status de éxito manual
+      message: message, 
+      hermanos: hermanos,
+      dniRegistrado: dniRegistrado 
+    };
 
   } catch (e) {
     Logger.log("Error en paso2_crearPagoYEmail: " + e.message);
-    return { status: 'ERROR', message: 'Error general en el servidor (Paso 2): ' + e.message, hermanos: [] };
+    return { 
+      status: 'ERROR', 
+      message: 'Error general en el servidor (Paso 2): ' + e.message, 
+      hermanos: [],
+      dniRegistrado: datos.dni 
+    };
   }
 }
-
-// --- TODAS LAS FUNCIONES DE MP FUERON MOVIDAS A PagosMP.gs ---
-// (crearPreferenciaDePago, procesarNotificacionDePago, actualizarEstadoEnPlanilla, enviarEmailPagoConfirmado, enviarEmailInscripcionCompleta)
