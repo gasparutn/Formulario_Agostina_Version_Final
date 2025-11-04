@@ -1,0 +1,1139 @@
+<script>
+  const APP_URL = GLOBAL_APP_URL; // (SOLUCIÓN) Lee la variable global de Index.html
+const CACHE_KEY = 'formDataCache';
+let numeroDeTurnoGuardado = null;
+// let telefonoCounter = 0; // Ya no se usa para teléfonos
+
+// =========================================================
+// DEFINICIONES DE FUNCIONES
+// =========================================================
+
+// (MODIFICADO - PUNTO B) Mensajes del Loader
+function handleRegistroSuccess(response) {
+if (response.status === 'OK_REGISTRO') {
+limpiarCache();
+numeroDeTurnoGuardado = response.numeroDeTurno;
+const loaderText = document.getElementById('loader-registro').querySelector('p');
+
+// --- (NUEVA MODIFICACIÓN) ---
+// Revisar si la jornada fue cambiada y mostrar el aviso.
+if (response.jornadaCambiada === true) {
+const statusDiv = document.getElementById('status-registro');
+statusDiv.innerHTML = `<div class="mensaje aviso">
+<strong>¡Atención!</strong> El cupo para Jornada Extendida se agotó.<br>
+Su registro fue guardado exitosamente en <strong>Jornada Normal</strong>.
+</div>`;
+// (MODIFICADO - PUNTO B)
+loaderText.textContent = `¡Registro guardado (con cambio de jornada) con exito!!!`;
+} else {
+// (MODIFICADO - PUNTO B)
+loaderText.textContent = `¡Registro guardado con exito!`;
+}
+// --- (FIN MODIFICACIÓN) ---
+
+google.script.run
+.withSuccessHandler(handlePagoSuccess)
+.withFailureHandler(handlePagoFailure)
+.paso2_crearPagoYEmail(response.datos, response.numeroDeTurno);
+
+} else {
+// Si el status NO es OK_REGISTRO, es un error (ej. cupo total agotado, DNI duplicado)
+handleRegistroFailure(response);
+}
+}
+
+function handleRegistroFailure(error) {
+document.getElementById('submit-button').disabled = false;
+document.getElementById('loader-registro').style.display = 'none';
+const errorMessage = error.message || 'Ocurrió un error desconocido al registrar.';
+document.getElementById('status-registro').innerHTML = `<div class="mensaje error"><strong>Error al Registrar:</strong> ${errorMessage}</div>`;
+}
+
+// (MODIFICADO - PUNTO A) Mensaje de Éxito Final
+function handlePagoSuccess(response) {
+document.getElementById('registroForm').style.display = 'none';
+document.getElementById('loader-registro').style.display = 'none';
+const statusDiv = document.getElementById('status-registro');
+
+// (Punto 29) MODIFICADO: Ya no se muestra el botón de MP. Se muestra un mensaje de éxito.
+if (response && response.status === 'OK_PAGO' && response.init_point) {
+
+// (MODIFICADO - PUNTO 39) Mensaje de Hermanos
+// Comprobar si hay hermanos en la respuesta
+const mensajeHermanos = (response.hermanos && response.hermanos.length > 0)
+? `RECORDATORIO..!! Si ingresó hermanos en la inscripción, deberá volver a ingresar a la página y validar nuevamente con el DNI del hermano/as para acceder al formulario y completar la información requerida.`
+: ``; // Si no hay hermanos, no mostrar nada extra
+
+statusDiv.innerHTML = `
+<div class="mensaje exito">¡Inscripción registrada con éxito!</div>
+<p style="text-align:center; font-weight:bold; margin:20px 0;">${mensajeHermanos}</p>
+<button type="button" id="btn-volver-form-limpio" class="btn-final-volver">Volver a Iniciar (Formulario Limpio)</button>
+`;
+document.getElementById('btn-volver-form-limpio').addEventListener('click', function() {
+window.top.location.href = APP_URL;
+});
+
+// (Punto 10) OK_EFECTIVO ahora maneja efectivo y transferencia
+} else if (response && (response.status === 'OK_EFECTIVO' || response.status === 'OK_REGISTRO_SIN_PAGO')) {
+
+// (MODIFICADO - PUNTO 39) Mensaje de Hermanos
+const mensajeHermanos = (response.hermanos && response.hermanos.length > 0)
+? `<br>RECORDATORIO..!! Si ingresó hermanos en la inscripción, deberá volver a ingresar a la página y validar nuevamente con el DNI de/los hermano/as para acceder al formulario y completar la información requerida.`
+: ``; // Si no hay hermanos, no mostrar nada extra
+
+statusDiv.innerHTML = `
+<div class="mensaje exito">${response.message}${mensajeHermanos}</div>
+<button type="button" id="btn-volver-form-limpio" class="btn-final-volver">Volver a Iniciar (Formulario Limpio)</button>
+`;
+document.getElementById('btn-volver-form-limpio').addEventListener('click', function() {
+window.top.location.href = APP_URL;
+});
+
+} else if (response && response.status === 'OK_REGISTRO_SIN_LINK') {
+statusDiv.innerHTML = `<div class="mensaje aviso">${response.message}</div>
+<button type="button" id="btn-volver-form-limpio" class="btn-final-volver">Volver a Iniciar (Formulario Limpio)</button>
+`;
+document.getElementById('btn-volver-form-limpio').addEventListener('click', function() {
+window.top.location.href = APP_URL;
+});
+
+} else {
+const errorMessage = response.message || 'Ocurrió un error desconocido en el paso 2.';
+statusDiv.innerHTML = `<div class="mensaje error"><strong>Error:</strong> ${errorMessage}</div>`;
+document.getElementById('registroForm').style.display = 'block';
+document.getElementById('submit-button').disabled = false;
+}
+}
+
+// (MODIFICADO - CORRECCIÓN ERROR "undefined")
+function handlePagoFailure(error) {
+document.getElementById('submit-button').disabled = false;
+document.getElementById('loader-registro').style.display = 'none';
+// Se usa (error.message || error) para evitar el "undefined"
+const errorMessage = error.message || error;
+document.getElementById('status-registro').innerHTML = `<div class="mensaje aviso">
+<strong>¡¡REGISTRO GUARDADO!!</strong><br>
+Pero ocurrió un error al crear el link de pago o enviar el email: ${errorMessage}.
+<br>Por favor, contacte a la administración con su número de turno.
+</div>`;
+}
+
+
+/**
+* (Punto 6, 12, 13, 14, 15, 18, 19, 25) Lógica de Aptitud y Comprobantes actualizada
+* (PUNTO 35) Actualizado DNI del pagador
+*/
+function handleValidationSuccess(response) {
+document.getElementById('btn-validar').disabled = false;
+document.getElementById('loader-validacion').style.display = 'none';
+const statusDiv = document.getElementById('status-validacion');
+
+// (Punto 6, 12, 25) NUEVOS ESTADOS
+if (response.status === 'HERMANO_COMPLETAR') {
+statusDiv.innerHTML = `<div class="mensaje aviso" style="text-align: left;">${response.message}</div>`;
+// Marcar que este DNI está completando el formulario (Punto 6)
+document.getElementById('esHermanoCompletando').value = "true";
+// Ocultar sección de hermanos
+const seccionHermanos = document.getElementById('seccion-hermanos');
+if (seccionHermanos) seccionHermanos.style.display = 'none';
+
+iniciarTemporizador(response); // ¡¡ESTA LÍNEA ES LA CLAVE!! Inicia el timer para mostrar el form
+
+} else if (response.status === 'OK_PREVENTA' || response.status === 'OK' || response.status === 'OK_NUEVO') {
+document.getElementById('esHermanoCompletando').value = "false";
+const seccionHermanos = document.getElementById('seccion-hermanos');
+
+// (Punto 25) Para Pre-Venta no tiene sentido agregar hermanos, los ocultamos.
+if (response.status === 'OK_PREVENTA') {
+if (seccionHermanos) seccionHermanos.style.display = 'none';
+} else {
+if (seccionHermanos) seccionHermanos.style.display = 'block';
+}
+iniciarTemporizador(response);
+
+} else if (response.status === 'REGISTRO_ENCONTRADO') {
+
+// LÓGICA PARA SUBIR COMPROBANTES
+
+let html = '';
+const proximaCuotaMsg = response.proximaCuotaPendiente
+? `<br><strong>Próxima Cuota Pendiente: ${response.proximaCuotaPendiente.replace('C', 'Cuota ')}</strong>.`
+: '';
+
+// Genera el mensaje de estado (éxito o aviso)
+if (response.message.includes('PAGADO')) {
+html += `<div class="mensaje exito" style="margin-bottom:10px; text-align:left;"><strong>${response.message}</strong></div>`;
+} else {
+let msgPago = response.message_pago ? `<br>${response.message_pago}` : '';
+html += `<div class="mensaje aviso" style="margin-bottom:10px; text-align:left;"><strong>${response.message}</strong>${msgPago}${proximaCuotaMsg}</div>`;
+}
+
+// Genera la sección de Aptitud Física (si la adeuda)
+if (response.adeudaAptitud === true) {
+html += `
+<div id="aptitud-manual-seccion" style="margin-top: 15px; padding: 10px; border: 1px solid #e67e22; border-radius: 5px; background: #fdf5e6;">
+<h3 style="background-color: #e67e22; color: white; padding: 10px;">¡Atención!</h3>
+<p style="text-align: center; font-weight: bold; color: #e67e22;">Adeuda Certificado de Aptitud Física</p>
+<p>Por favor, suba el certificado para completar la ficha.</p>
+<label for="aptitud-manual-upload" class="file-input-label" style="background-color: #e67e22;">Seleccionar Certificado</label>
+<input type="file" id="aptitud-manual-upload" accept="image/jpeg, image/png, application/pdf">
+<span id="aptitud-manual-name" class="file-name">Ningún archivo seleccionado</span>
+<button type="button" id="btn-submit-aptitud-manual" style="background-color: #e67e22; width: 100%; height:45px">Subir Certificado!!!</button>
+<div class="loader" id="loader-aptitud" style="display: none;"><div class="spinner"></div><p>Subiendo...</p></div>
+</div>`;
+}
+
+// Si el mensaje NO incluye "PAGADO" (es decir, adeuda), muestra la sección de pago/subida.
+if (!response.message.includes('PAGADO') && !response.message.includes('En revisión')) { // <-- ¡¡¡ESTA ES LA LÍNEA CORREGIDA!!!
+html += `
+<div id="comprobante-manual-seccion" style="margin-top: 15px; border: 1px solid var(--color-principal); padding: 15px; border-radius: 5px;">
+`;
+
+if (response.init_point) {
+html += `
+<button type="button" id="btn-pagar-pendiente">1. Pagar Próxima Cuota/Pendiente con Mercado Pago</button>
+<hr style="margin: 15px 0;">
+<h3>2. Subir un comprobante (Cuota, Transferencia, etc.):</h3>
+`;
+} else if (response.error_init_point) {
+html += `<div class="mensaje error" style="text-align:left;">No se pudo generar un link de Mercado Pago: ${response.error_init_point}</div>
+<hr style="margin: 15px 0;">
+<h3>2. Subir un comprobante (Cuota, Transferencia, etc.):</h3>
+`;
+} else {
+html += `<h3>Subir un comprobante (Cuota, Transferencia, etc.):</h3>`;
+}
+
+html += `
+<label for="tipo-comprobante-select">Seleccione el tipo de comprobante:</label>
+<select id="tipo-comprobante-select">
+<option value="">-- Elija una opción --</option>
+<option value="mp_total">a) Comprobante 1 Pago Mercado Pago Monto Total</option>
+<option value="mp_cuotas_group">b) Comprobante Pagos en cuotas Mercado Pago</option>
+<option value="externo">c) Comprobante Externo (Transferencia, etc.)</option>
+</select>
+
+<div id="cuota-selector-container" style="display: none; margin-top: 10px;">
+<label for="cuota-selector">Seleccione la Cuota a la que corresponde el comprobante:</label>
+<select id="cuota-selector">
+<option value="">-- Seleccione Cuota --</option>
+<option value="mp_cuota_1">Cuota 1 (Impacta en AQ)</option>
+<option value="mp_cuota_2" id="sec-op-cuota-2">Cuota 2 (Impacta en AR)</option>
+<option value="mp_cuota_3" id="sec-op-cuota-3">Cuota 3 (Impacta en AS)</option>
+</select>
+</div>
+
+<div id="datos-externo-container">
+<label for="externo-nombre-pagador">Nombre y Apellido (del Adulto Pagador):</label>
+<input type="text" id="externo-nombre-pagador" placeholder="Nombre Apellido (Quien paga)">
+<label for="externo-dni-pagador">DNI (del Adulto Pagador):</label>
+<input type="tel" id="externo-dni-pagador" placeholder="DNI (Quien paga)" pattern="[0-9]{8}" inputmode="numeric" maxlength="8" title="El DNI debe tener exactamente 8 dígitos numéricos.">
+</div>
+
+<div id="upload-file-container">
+<label for="comprobante-manual-upload" class="file-input-label" style="background-color: #7f8c8d;">Seleccionar Archivo para Subir</label>
+<input type="file" id="comprobante-manual-upload" accept="image/jpeg, image/png, application/pdf">
+<div style="display: flex; align-items: center; margin-bottom: 15px;">
+<span id="comprobante-manual-name" class="file-name" style="margin-bottom: 0;">Ningún archivo seleccionado</span>
+<button type="button" id="btn-clear-comprobante" class="btn-remover" style="display:none; margin-top: 0; margin-left: 10px;">X</button>
+</div>
+<button type="button" id="btn-submit-comprobante-manual">Subir Comprobante</button>
+</div>
+
+<hr style="margin-top:20px;">
+<button type="button" id="btn-finalizar-upload">Finalizar Carga (Volver)</button>
+</div>
+`;
+} else {
+// Si SÍ incluye "PAGADO", pero NO adeuda aptitud, no hay nada que hacer.
+// Mostramos un botón de "Volver" para que no se quede en una pantalla vacía.
+if (response.adeudaAptitud !== true) {
+html += `<button type="button" id="btn-finalizar-upload" class="btn-final-volver">Volver al Inicio</button>`;
+}
+}
+
+statusDiv.innerHTML = html;
+
+// --- (MODIFICACIÓN CRÍTICA) ---
+// Todos los listeners se mueven DENTRO de los IF correspondientes
+// para evitar errores de 'null'.
+
+// Listener de Aptitud (solo si se mostró)
+if (response.adeudaAptitud === true) {
+document.getElementById('aptitud-manual-upload').addEventListener('change', function() {
+document.getElementById('aptitud-manual-name').textContent = this.files[0] ? this.files[0].name : 'Ningún archivo seleccionado';
+});
+document.getElementById('btn-submit-aptitud-manual').addEventListener('click', submitAptitudManual);
+}
+
+// Listeners de Comprobantes (solo si la sección se mostró)
+if (!response.message.includes('PAGADO') && !response.message.includes('En revisión')) { // <-- ¡¡¡MISMA CORRECCIÓN AQUÍ!!!
+const cantidadCuotas = parseInt(response.cantidadCuotas) || 0;
+const cuotaSelectorContainer = document.getElementById('cuota-selector-container');
+const datosExternoContainer = document.getElementById('datos-externo-container');
+const uploadFileContainer = document.getElementById('upload-file-container');
+const cuotaSelector = document.getElementById('cuota-selector');
+const fileInputComprobante = document.getElementById('comprobante-manual-upload');
+const btnClearComprobante = document.getElementById('btn-clear-comprobante');
+
+const secOpCuota2 = document.getElementById('sec-op-cuota-2');
+const secOpCuota3 = document.getElementById('sec-op-cuota-3');
+
+// (Punto 28) Lógica de 3 cuotas. Si cantidadCuotas > 0, se asume que son 3.
+if (cantidadCuotas > 0) {
+if (secOpCuota3) secOpCuota3.style.display = 'block';
+if (secOpCuota2) secOpCuota2.style.display = 'block';
+} else {
+if (secOpCuota3) secOpCuota3.style.display = 'none';
+if (secOpCuota2) secOpCuota2.style.display = 'none';
+}
+
+const tipoComprobanteSelect = document.getElementById('tipo-comprobante-select');
+if (tipoComprobanteSelect) {
+tipoComprobanteSelect.addEventListener('change', function() {
+const tipo = this.value;
+datosExternoContainer.style.display = (tipo !== '') ? 'block' : 'none';
+cuotaSelectorContainer.style.display = (tipo === 'mp_cuotas_group' && cantidadCuotas > 0) ? 'block' : 'none';
+uploadFileContainer.style.display = (tipo !== '') ? 'block' : 'none';
+if (tipo !== 'mp_cuotas_group' && cuotaSelector) {
+cuotaSelector.value = '';
+}
+if(fileInputComprobante) fileInputComprobante.value = '';
+if(document.getElementById('comprobante-manual-name')) document.getElementById('comprobante-manual-name').textContent = 'Ningún archivo seleccionado';
+if(btnClearComprobante) btnClearComprobante.style.display = 'none';
+});
+}
+
+if (fileInputComprobante) {
+fileInputComprobante.addEventListener('change', function() {
+const file = this.files[0];
+document.getElementById('comprobante-manual-name').textContent = file ? file.name : 'Ningún archivo seleccionado';
+btnClearComprobante.style.display = file ? 'inline-block' : 'none';
+});
+}
+
+if (btnClearComprobante) {
+btnClearComprobante.addEventListener('click', function() {
+fileInputComprobante.value = '';
+document.getElementById('comprobante-manual-name').textContent = 'Ningún archivo seleccionado';
+this.style.display = 'none';
+});
+}
+
+const btnSubmitComprobante = document.getElementById('btn-submit-comprobante-manual');
+if (btnSubmitComprobante) {
+btnSubmitComprobante.addEventListener('click', function() {
+const file = fileInputComprobante.files[0];
+const tipoComprobanteSelect = document.getElementById('tipo-comprobante-select');
+let tipoComprobante = tipoComprobanteSelect.value;
+
+if (tipoComprobante === 'mp_cuotas_group') {
+const cuotaSelector = document.getElementById('cuota-selector');
+if (!cuotaSelector.value) {
+alert('Por favor, seleccione la Cuota a la que corresponde el comprobante.');
+return;
+}
+tipoComprobante = cuotaSelector.value;
+}
+
+let datosExtras = null;
+
+if (tipoComprobante && tipoComprobante !== 'mp_cuotas_group') {
+const nombrePagador = document.getElementById('externo-nombre-pagador').value;
+const dniPagadorInput = document.getElementById('externo-dni-pagador');
+const dniPagador = dniPagadorInput.value;
+
+if (!nombrePagador || !dniPagador) {
+alert('Por favor, complete el Nombre/Apellido y DNI del Adulto Pagador.');
+return;
+}
+// (Validación Punto 35)
+if (!/^[0-9]{8}$/.test(dniPagador)) {
+alert('Error: El DNI del Adulto Pagador debe tener exactamente 8 dígitos numéricos.');
+dniPagadorInput.focus();
+return;
+}
+datosExtras = { nombrePagador: nombrePagador, dniPagador: dniPagador };
+}
+
+const dni = document.getElementById('dni-input').value;
+if (!file) { alert('Por favor, seleccione un archivo para subir.'); return; }
+if (!tipoComprobante || tipoComprobante === 'mp_cuotas_group') {
+alert('Por favor, seleccione el tipo de comprobante (Total, Cuota o Externo).');
+return;
+}
+
+this.disabled = true;
+fileInputComprobante.disabled = true;
+if(document.getElementById('btn-pagar-pendiente')) document.getElementById('btn-pagar-pendiente').disabled = true;
+if(document.getElementById('btn-finalizar-upload')) document.getElementById('btn-finalizar-upload').disabled = true;
+
+document.getElementById('loader-validacion').style.display = 'block';
+document.getElementById('loader-validacion').querySelector('p').textContent = "Subiendo comprobante...";
+
+comprimirYLeerArchivo(file).then(fileData => {
+google.script.run
+.withSuccessHandler(handleComprobanteUploadSuccess)
+.withFailureHandler(handleComprobanteUploadFailure)
+.subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras);
+}).catch(err => {
+handleComprobanteUploadFailure(err);
+});
+});
+}
+
+const btnPagar = document.getElementById('btn-pagar-pendiente');
+if (btnPagar) {
+btnPagar.addEventListener('click', function() {
+this.disabled = true;
+this.textContent = "Redirigiendo...";
+window.top.location.href = response.init_point;
+});
+}
+} // <-- (MODIFICACIÓN CRÍTICA) Fin del "if (!response.message.includes('PAGADO') && !response.message.includes('En revisión'))"
+
+// Listener de "Finalizar/Volver" (siempre existe, ya sea en un caso o en el otro)
+const btnFinalizar = document.getElementById('btn-finalizar-upload');
+if (btnFinalizar) {
+btnFinalizar.addEventListener('click', function() {
+window.top.location.href = APP_URL;
+});
+}
+// FIN DE LA LÓGICA DE 'REGISTRO_ENCONTRADO'
+
+} else { // Errores y otros avisos
+statusDiv.innerHTML = `<div class="mensaje error"><strong>Aviso:</strong> ${response.message}</div>`;
+}
+}
+
+
+
+/**
+* (h) Función de fallo para la validación
+*/
+function handleValidationFailure(error) {
+document.getElementById('btn-validar').disabled = false;
+document.getElementById('loader-validacion').style.display = 'none';
+const statusDiv = document.getElementById('status-validacion');
+statusDiv.innerHTML = `<div class="mensaje error"><strong>Error en el Servidor:</strong> ${error.message}</div>`;
+}
+
+/**
+* (h) Subida de aptitud manual (desde la pantalla de validación)
+*/
+function submitAptitudManual() {
+const fileInput = document.getElementById('aptitud-manual-upload');
+const file = fileInput.files[0];
+const dni = document.getElementById('dni-input').value;
+
+if (!file) {
+alert('Por favor, seleccione un archivo de aptitud física.');
+return;
+}
+
+const btn = document.getElementById('btn-submit-aptitud-manual');
+const loader = document.getElementById('loader-aptitud');
+btn.disabled = true;
+loader.style.display = 'block';
+
+comprimirYLeerArchivo(file).then(fileData => {
+google.script.run
+.withSuccessHandler(function(response) {
+loader.style.display = 'none';
+if (response.status === 'OK') {
+document.getElementById('aptitud-manual-seccion').innerHTML = `<div class="mensaje exito">${response.message}</div>`;
+} else {
+alert("Error al subir: " + response.message);
+btn.disabled = false;
+}
+})
+.withFailureHandler(function(error) {
+loader.style.display = 'none';
+alert("Error de conexión: " + error.message);
+btn.disabled = false;
+})
+.subirAptitudManual(dni, fileData);
+}).catch(err => {
+loader.style.display = 'none';
+alert("Error al procesar archivo: " + err.message);
+btn.disabled = false;
+});
+}
+
+
+/**
+* (Error 2 Arreglado) Función de fallo para la subida de comprobante
+*/
+function handleComprobanteUploadFailure(error) {
+document.getElementById('loader-validacion').style.display = 'none';
+const statusDiv = document.getElementById('status-validacion');
+statusDiv.insertAdjacentHTML('afterbegin', `<div class="mensaje error" style="margin-bottom:10px;">Error al subir: ${error.message}</div>`);
+
+// Re-habilitar todo para reintentar
+const fileInputComprobante = document.getElementById('comprobante-manual-upload');
+const btnSubmitComprobante = document.getElementById('btn-submit-comprobante-manual');
+const btnFinalizar = document.getElementById('btn-finalizar-upload');
+const btnPagarPendiente = document.getElementById('btn-pagar-pendiente');
+
+if (btnSubmitComprobante) btnSubmitComprobante.disabled = false;
+if (fileInputComprobante) fileInputComprobante.disabled = false;
+if (btnPagarPendiente) btnPagarPendiente.disabled = false;
+if (btnFinalizar) btnFinalizar.disabled = false;
+}
+
+/**
+* (Fix Punto 19) Función de éxito para la subida de comprobante
+*/
+function handleComprobanteUploadSuccess(response) {
+document.getElementById('loader-validacion').style.display = 'none';
+const statusDiv = document.getElementById('status-validacion');
+const fileInputComprobante = document.getElementById('comprobante-manual-upload');
+const btnSubmitComprobante = document.getElementById('btn-submit-comprobante-manual');
+const btnFinalizar = document.getElementById('btn-finalizar-upload');
+const btnPagarPendiente = document.getElementById('btn-pagar-pendiente');
+
+const tipoComprobanteSelect = document.getElementById('tipo-comprobante-select');
+const cuotaSelectorContainer = document.getElementById('cuota-selector-container');
+const datosExternoContainer = document.getElementById('datos-externo-container'); // <-- RE-AGREGADO
+const uploadFileContainer = document.getElementById('upload-file-container');
+const btnClearComprobante = document.getElementById('btn-clear-comprobante'); // NEW
+
+if (response.status === 'OK') {
+// Éxito: Mostrar mensaje con color (Punto 2)
+const successMsgHtml = `<div class="mensaje exito" style="margin-bottom:10px;">${response.message} (Puede subir otro si es necesario)</div>`;
+statusDiv.insertAdjacentHTML('afterbegin', successMsgHtml);
+
+// Resetear/Limpiar Formulario (Punto 2)
+if(fileInputComprobante) fileInputComprobante.value = '';
+if(document.getElementById('comprobante-manual-name')) document.getElementById('comprobante-manual-name').textContent = 'Ningún archivo seleccionado';
+if(tipoComprobanteSelect) tipoComprobanteSelect.value = '';
+
+// Ocultar contenedores
+if (cuotaSelectorContainer) cuotaSelectorContainer.style.display = 'none';
+if (datosExternoContainer) datosExternoContainer.style.display = 'none'; // <-- RE-AGREGADO
+if (uploadFileContainer) uploadFileContainer.style.display = 'none';
+
+if (btnClearComprobante) btnClearComprobante.style.display = 'none';
+
+// (LÓGICA REQUERIDA) Limpiar datos del pagador
+if (document.getElementById('externo-nombre-pagador')) document.getElementById('externo-nombre-pagador').value = '';
+if (document.getElementById('externo-dni-pagador')) document.getElementById('externo-dni-pagador').value = '';
+
+
+} else {
+// Error de lógica (ej. DNI no encontrado)
+statusDiv.insertAdjacentHTML('afterbegin', `<div class="mensaje error" style="margin-bottom:10px;">${response.message}</div>`);
+}
+
+// Re-habilitar botones para subir otro o pagar/finalizar
+if(btnSubmitComprobante) btnSubmitComprobante.disabled = false;
+if(fileInputComprobante) fileInputComprobante.disabled = false;
+if(btnPagarPendiente) btnPagarPendiente.disabled = false;
+if(btnFinalizar) btnFinalizar.disabled = false;
+}
+
+function iniciarTemporizador(response) {
+document.getElementById('timer-seccion').style.display = 'block';
+document.getElementById('btn-validar').disabled = true;
+let segundos = 8;
+const countdown = document.getElementById('timer-countdown');
+countdown.textContent = segundos;
+const interval = setInterval(() => {
+segundos--;
+countdown.textContent = segundos;
+if (segundos <= 0) {
+clearInterval(interval);
+mostrarFormulario(response);
+}
+}, 800);
+}
+
+
+/**
+* (Punto 7, 25, 28, 30) Pre-rellena el formulario y maneja la lógica de Pre-Venta
+* (PUNTO 33) Modificado para rellenar email de hermano y corregir fila de autorizados.
+* (NUEVO - PUNTO C) Añadida lógica para 'pagoTotalHabilitado'
+*
+* *** ¡¡MODIFICACIÓN SOLICITADA!! ***
+*
+*/
+function mostrarFormulario(response) {
+document.getElementById('validacion-seccion').style.display = 'none';
+document.getElementById('registro-seccion').style.display = 'block';
+
+const esPreventa = response.datos && response.datos.esPreventa === true;
+
+// Pre-rellenar DNI (siempre)
+document.getElementById('dni').value = response.datos.dni;
+
+// --- INICIO DE MODIFICACIÓN (PUNTO 33.1 - Email) ---
+// Se mueve el rellenado del email AFUERA del 'if (esPreventa)'
+// para que también funcione para los hermanos (HERMANO_COMPLETAR).
+if (response.datos) {
+document.getElementById('email').value = response.datos.email || '';
+}
+// --- FIN DE MODIFICACIÓN (PUNTO 33.1) ---
+
+
+// Pre-rellenar campos desde 'Base de Datos' (Anterior) o 'Preventa'
+if (response.datos) {
+document.getElementById('nombre').value = response.datos.nombre || '';
+document.getElementById('apellido').value = response.datos.apellido || '';
+document.getElementById('fechaNacimiento').value = response.datos.fechaNacimiento || '';
+document.getElementById('obraSocial').value = response.datos.obraSocial || '';
+document.getElementById('colegioJardin').value = response.datos.colegioJardin || '';
+document.getElementById('adultoResponsable1').value = response.datos.adultoResponsable1 || '';
+document.getElementById('dniResponsable1').value = response.datos.dniResponsable1 || ''; // Agregado por si viene de hermano
+
+// Parsear teléfono Resp 1 (si viene de BD o Hermano)
+if (response.datos.telResponsable1) {
+const telMatch = String(response.datos.telResponsable1).match(/\(?(\d{2,5})\)?\s?(\d+)/);
+if (telMatch) {
+document.getElementById('telAreaResp1').value = telMatch[1] || '';
+document.getElementById('telNumResp1').value = telMatch[2] || '';
+}
+}
+
+document.getElementById('adultoResponsable2').value = response.datos.adultoResponsable2 || '';
+// Parsear teléfono Resp 2
+if (response.datos.telResponsable2) {
+const telMatch2 = String(response.datos.telResponsable2).match(/\(?(\d{2,5})\)?\s?(\d+)/);
+if (telMatch2) {
+document.getElementById('telAreaResp2').value = telMatch2[1] || '';
+document.getElementById('telNumResp2').value = telMatch2[2] || '';
+}
+}
+
+// Pre-rellenar autorizados (si viene de hermano)
+if (response.datos.personasAutorizadas) {
+const autorizados = response.datos.personasAutorizadas.split(',');
+const container = document.getElementById('autorizados-container');
+
+// --- INICIO DE MODIFICACIÓN (PUNTO 33.2 - Autorizados) ---
+// Se limpia el contenedor para eliminar la fila vacía
+// que se agregó al cargar la página (DOMContentLoaded).
+container.innerHTML = '';
+// --- FIN DE MODIFICACIÓN (PUNTO 33.2) ---
+
+autorizados.forEach(aut => {
+const autTrim = aut.trim();
+if (autTrim) {
+const match = autTrim.match(/(.*)\(DNI:\s?(\d+)\)/);
+if (match) {
+addAutorizadoCampos(match[1].trim(), match[2].trim());
+} else {
+addAutorizadoCampos(autTrim, '');
+}
+}
+});
+}
+
+// Rellenar campos específicos de PRE-VENTA
+if (esPreventa) {
+// document.getElementById('email').value = response.datos.email || ''; // <-- Esta línea se movió arriba
+document.getElementById('jornada').value = response.datos.jornada || '';
+}
+}
+
+// Lógica de cupo de jornada extendida
+if (response.jornadaExtendidaAlcanzada === true) {
+const opcionExtendida = document.getElementById('opcion-jornada-extendida');
+if (opcionExtendida) {
+opcionExtendida.disabled = true;
+opcionExtendida.textContent = "Jornada Extendida (SIN CUPO)";
+}
+const msgCupo = document.getElementById('jornada-cupo-msg');
+if (msgCupo) {
+msgCupo.style.display = 'inline';
+}
+}
+
+// --- (INICIO MODIFICACIÓN SOLICITADA) ---
+// Lógica para Habilitar/Ocultar Pago Total
+const opcionPagoTotal = document.querySelector('#metodoPago option[value="Pago 1 Cuota Deb/Cred MP(Total)"]');
+if (opcionPagoTotal) {
+if (response.pagoTotalHabilitado === true) {
+// Si está habilitado: mostrarlo y habilitarlo
+opcionPagoTotal.style.display = 'block';
+opcionPagoTotal.disabled = false;
+} else {
+// Si está deshabilitado: ocultarlo y deshabilitarlo
+opcionPagoTotal.style.display = 'none';
+opcionPagoTotal.disabled = true;
+}
+}
+// --- (FIN MODIFICACIÓN SOLICITADA) ---
+
+// (Punto 25 - CORRECCIÓN 6) LÓGICA DE PRE-VENTA
+if (esPreventa) {
+// 1. Inputs de texto: Solo se marcan como 'readOnly'
+const inputsParaBloquear = ['nombre', 'apellido', 'fechaNacimiento', 'email'];
+inputsParaBloquear.forEach(id => {
+const el = document.getElementById(id);
+if (el) {
+el.readOnly = true;
+el.classList.add('campo-bloqueado');
+el.classList.add('form-cache'); // <--- ASEGURARSE que 'form-cache' esté
+}
+});
+
+// 2. Selects (Jornada): Solo se marcan como 'disabled'
+const jornadaSelect = document.getElementById('jornada');
+if (jornadaSelect) {
+jornadaSelect.disabled = false;
+jornadaSelect.classList.add('campo-bloqueado');
+jornadaSelect.classList.add('form-cache'); // <--- ASEGURARSE que 'form-cache' esté
+}
+
+// 3. El DNI también se bloquea visualmente (ya es readOnly por defecto)
+document.getElementById('dni').classList.add('campo-bloqueado');
+// Nos aseguramos que el DNI (que es readOnly) también se recolecte
+document.getElementById('dni').classList.add('form-cache');
+}
+// (FIN CORRECCIÓN)
+
+
+// (Punto 9) Asegurar que haya al menos un autorizado si el caché está vacío
+if (document.querySelectorAll('.autorizado-nombre').length === 0) {
+addAutorizadoCampos();
+}
+
+// Llamadas a funciones de UI
+guardarFormEnCache();
+calcularYMostrarEdad(); // <-- Llama la función una vez para rellenar campos cacheados
+
+// (PUNTO 30) CORRECCIÓN: Adjuntar el listener AQUÍ para que funcione DESPUÉS de mostrar el form
+document.getElementById('fechaNacimiento').addEventListener('input', calcularYMostrarEdad); // <-- CAMBIADO A 'input'
+
+toggleEspecifique('practicaDeporte', 'especifiqueDeporte');
+toggleEspecifique('tieneEnfermedad', 'especifiqueEnfermedad');
+toggleEspecifique('esAlergico', 'especifiqueAlergia');
+
+// (Punto 28) Restauradas las funciones de pago
+toggleCantidadCuotas();
+toggleTransferenciaInfo();
+toggleCuotasInfo();
+}
+
+
+
+
+function comprimirYLeerArchivo(file) {
+const MAX_WIDTH = 1024;
+const QUALITY = 0.7;
+const mimeType = file.type;
+
+return new Promise((resolve, reject) => {
+if (mimeType !== 'image/jpeg' && mimeType !== 'image/png') {
+readFileAsBase64(file).then(data => {
+resolve({ data, mimeType, fileName: file.name });
+}).catch(reject);
+return;
+}
+
+const reader = new FileReader();
+reader.onload = (e) => {
+const img = new Image();
+img.onload = () => {
+let width = img.width;
+let height = img.height;
+if (width > height) {
+if (width > MAX_WIDTH) {
+height *= MAX_WIDTH / width;
+width = MAX_WIDTH;
+}
+} else {
+if (height > MAX_WIDTH) {
+width *= MAX_WIDTH / height;
+height = MAX_WIDTH;
+}
+}
+const canvas = document.createElement('canvas');
+canvas.width = width;
+canvas.height = height;
+const ctx = canvas.getContext('2d');
+ctx.drawImage(img, 0, 0, width, height);
+const compressedData = canvas.toDataURL('image/jpeg', QUALITY);
+resolve({
+data: compressedData,
+mimeType: 'image/jpeg',
+fileName: file.name.replace(/\.[^/.]+$/, "") + ".jpg"
+});
+};
+img.onerror = reject;
+img.src = e.target.result;
+};
+reader.onerror = reject;
+reader.readAsDataURL(file);
+});
+}
+
+function manejarSubidaArchivo(inputElement, tipoArchivo, nombreLabelId, loaderId, urlHiddenId) {
+const file = inputElement.files[0];
+const nombreLabel = document.getElementById(nombreLabelId);
+const loader = document.getElementById(loaderId);
+const urlHidden = document.getElementById(urlHiddenId);
+const dni = document.getElementById('dni').value;
+
+urlHidden.value = '';
+loader.style.display = 'none';
+nombreLabel.textContent = 'Ningún archivo seleccionado';
+if (!file) return;
+
+if (!dni) {
+alert("Error: No se puede subir un archivo si el DNI no está cargado en el formulario (Paso 2).");
+inputElement.value = '';
+return;
+}
+
+nombreLabel.textContent = file.name;
+loader.className = 'loader-archivo';
+loader.style.display = 'block';
+loader.textContent = 'Iniciando...';
+
+inputElement.disabled = true;
+document.getElementById('submit-button').disabled = true;
+
+loader.textContent = 'Preparando archivo (comprimiendo si es imagen)...';
+comprimirYLeerArchivo(file).then(fileData => {
+loader.textContent = 'Subiendo archivo...';
+google.script.run
+.withSuccessHandler(function(response) {
+inputElement.disabled = false;
+document.getElementById('submit-button').disabled = false;
+if (response.status === 'OK') {
+loader.className = 'loader-archivo exito';
+loader.textContent =  '✅ Archivo subido con éxito.' ;
+urlHidden.value = response.url;
+} else {
+loader.className = 'loader-archivo error';
+loader.textContent =  `❌ Error:  ${response.message}`;
+inputElement.value = '';
+nombreLabel.textContent = 'Ningún archivo seleccionado';
+}
+})
+.withFailureHandler(function(error) {
+inputElement.disabled = false;
+document.getElementById('submit-button').disabled = false;
+loader.className = 'loader-archivo error';
+loader.textContent =  `❌ Error de conexión:  ${error.message}`;
+inputElement.value = '';
+nombreLabel.textContent = 'Ningún archivo seleccionado';
+})
+.subirArchivoIndividual(fileData, dni, tipoArchivo);
+}).catch(err => {
+inputElement.disabled = false;
+document.getElementById('submit-button').disabled = false;
+loader.className = 'loader-archivo error';
+loader.textContent =  `❌ Error al procesar el archivo:  ${err.message}`;
+inputElement.value = '';
+nombreLabel.textContent = 'Ningún archivo seleccionado';
+});
+}
+
+function calcularYMostrarEdad(fechaNacimientoStr, divId) {
+let fechaNac = fechaNacimientoStr;
+let divEdad = divId;
+
+// Comportamiento por defecto (para el inscripto principal)
+if (!fechaNacimientoStr || (fechaNacimientoStr && typeof fechaNacimientoStr === 'object')) { // (PUNTO 30) Captura el 'event'
+fechaNac = document.getElementById('fechaNacimiento').value;
+divEdad = document.getElementById('edad-calculada');
+}
+
+
+if (!fechaNac) {
+if (divEdad) divEdad.textContent = '';
+return;
+}
+
+const fechaNacimiento = new Date(fechaNac);
+const hoy = new Date();
+fechaNacimiento.setMinutes(fechaNacimiento.getMinutes() + fechaNacimiento.getTimezoneOffset());
+let anos = hoy.getFullYear() - fechaNacimiento.getFullYear();
+let meses = hoy.getMonth() - fechaNacimiento.getMonth();
+let dias = hoy.getDate() - fechaNacimiento.getDate();
+if (dias < 0) {
+meses--;
+dias += new Date(hoy.getFullYear(), hoy.getMonth(), 0).getDate();
+}
+if (meses < 0) {
+anos--;
+meses += 12;
+}
+if (anos >= 0) {
+if (divEdad) divEdad.textContent = `Edad actual: ${anos} años, ${meses} meses y ${dias} días.`;
+} else {
+if (divEdad) divEdad.textContent = '';
+}
+}
+
+function toggleEspecifique(radioName, inputId) {
+const radioChecked = document.querySelector(`input[name="${radioName}"]:checked`);
+const inputField = document.getElementById(inputId);
+if (radioChecked && radioChecked.value === 'Sí') {
+inputField.style.display = 'block';
+inputField.required = true; // (Punto 8) Requerido si marca Sí
+} else {
+inputField.style.display = 'none';
+inputField.value = '';
+inputField.required = false;
+}
+}
+
+// (Punto 28) Restaurada, pero ahora OCULTARÁ el selector de cuotas
+// si NO se elige "Pago en Cuotas".
+function toggleCantidadCuotas() {
+const metodoPago = document.getElementById('metodoPago').value;
+// El container ya no existe, por lo que esta función ya no es necesaria
+const container = document.getElementById('cantidadCuotasContainer');
+if (!container) return; // El div ya no existe, salimos.
+
+// La lógica de abajo nunca se ejecutará, lo cual es correcto.
+const selectCuotas = document.getElementById('cantidadCuotas');
+if (metodoPago === 'Pago en Cuotas') {
+container.style.display = 'block';
+selectCuotas.classList.add('form-cache');
+selectCuotas.required = true;
+} else {
+container.style.display = 'none';
+selectCuotas.classList.remove('form-cache');
+selectCuotas.required = false;
+selectCuotas.value = ''; // Resetear
+}
+}
+
+// (MODIFICADO - PUNTO 33) Esta función ahora controla SOLO el div fusionado
+function toggleCuotasInfo() {
+const metodoPago = document.getElementById('metodoPago').value;
+const show = (metodoPago === 'Pago en Cuotas');
+
+const containerAlias = document.getElementById('cuotas-transferencia-info');
+if(containerAlias) containerAlias.style.display = show ? 'block' : 'none';
+}
+
+// (Punto 10) Restaurada
+function toggleTransferenciaInfo() {
+const metodoPago = document.getElementById('metodoPago').value;
+const container = document.getElementById('transferencia-info');
+container.style.display = (metodoPago === 'Transferencia') ? 'block' : 'none';
+}
+
+// (ELIMINADO - PUNTO 33) Esta función ya no es necesaria
+/*
+function toggleCuotasTransferenciaInfo() {
+...
+}
+*/
+
+
+function removerFila(boton) {
+boton.parentElement.remove();
+guardarFormEnCache();
+}
+
+function readFileAsBase64(file) {
+return new Promise((resolve, reject) => {
+const reader = new FileReader();
+reader.onload = () => resolve(reader.result);
+reader.onerror = (error) => reject(error);
+reader.readAsDataURL(file);
+});
+}
+
+// (Punto 5, 9) Añadir Autorizado
+// (PUNTO 35) Actualizado pattern de DNI
+function addAutorizadoCampos(nombre = '', dni = '') {
+const container = document.getElementById('autorizados-container');
+const div = document.createElement('div');
+div.className = 'fila-dinamica';
+
+// (Punto 9) El primer autorizado es requerido
+const isRequired = (container.children.length === 0) ? 'required' : '';
+
+div.innerHTML = `
+<div class="campos-dinamicos">
+<input type="text" class="autorizado-nombre form-cache" placeholder="Nombre y Apellido (Relación)" value="${nombre}" ${isRequired}>
+<input type="tel" class="autorizado-dni form-cache" placeholder="DNI (8 dígitos)" maxlength="8" pattern="[0-9]{8}" inputmode="numeric" value="${dni}" ${isRequired} title="El DNI debe tener exactamente 8 dígitos numéricos.">
+</div>
+<button type="button" class="btn-remover" onclick="removerFila(this)">X</button>
+`;
+container.appendChild(div);
+}
+
+// (Punto 5) Añadir Hermano
+// (MODIFICADO - REQ 2) Añadidos placeholders de error inline
+// (MODIFICADO - PUNTO 38) Actualizado 'max' date
+function addHermanoCampos() {
+const container = document.getElementById('hermanos-container');
+const div = document.createElement('div');
+div.className = 'fila-dinamica';
+const uniqueId = 'hermano_edad_' + container.children.length;
+
+// (MODIFICADO) Se mueve el div de edad DENTRO del .hermano-campos
+// y se le da un estilo para que ocupe las 2 columnas del grid.
+div.innerHTML = `
+<div class="hermano-campos">
+<input type="text" class="hermano-nombre form-cache" placeholder="Nombre Hermano/a" required>
+<input type="text" class="hermano-apellido form-cache" placeholder="Apellido Hermano/a" required>
+
+<input type="tel" class="hermano-dni form-cache" placeholder="DNI Hermano/a (8 dígitos)" maxlength="8" pattern="[0-9]{8}" inputmode="numeric" required title="El DNI debe tener exactamente 8 dígitos numéricos.">
+<input type="date" class="hermano-fechanac form-cache" required oninput="calcularYMostrarEdad(this.value, '${uniqueId}')" min="2010-01-01" max="2023-12-31">
+
+<div class="hermano-dni-error" style="color: red; font-size: 0.85em; grid-column: 1 / 2; margin-top: -10px; min-height: 1.2em;"></div>
+<div class="hermano-fecha-error" style="color: red; font-size: 0.85em; grid-column: 2 / 3; margin-top: -10px; min-height: 1.2em;"></div>
+
+<div id="${uniqueId}" class="edad-calculada" style="grid-column: 1 / -1; font-size: 0.9em; margin-top: 5px; margin-left: 5px;"></div>
+</div>
+<button type="button" class="btn-remover" onclick="removerFila(this)">X</button>
+`;
+container.appendChild(div);
+}
+
+function guardarFormEnCache() {
+try {
+const data = {};
+document.querySelectorAll('.form-cache').forEach(el => {
+const key = el.id || el.name;
+if (!key) return; // Saltar campos dinámicos sin id/name (como los de hermanos)
+
+if (el.disabled) {
+// Recolectar manually campos deshabilitados (como 'jornada' en Pre-Venta)
+if (el.id === 'jornada') {
+data[key] = el.value;
+}
+return; // No guardar otros deshabilitados
+}
+
+if (el.type === 'radio') {
+if (el.checked) {
+data[el.name] = el.value;
+}
+} else {
+// (Punto 28) La lógica de 'cantidadCuotas' se manejará en el submit
+// (El campo 'cantidadCuotas' ya no es 'form-cache' porque se eliminó el div)
+data[key] = el.value;
+}
+});
+
+// Guardado de Teléfonos (Estático)
+// Ya se guardan por su ID (telAreaResp1, etc)
+
+// Guardado de Autorizados
+data.autorizados = [];
+const nombresAut = document.querySelectorAll('.autorizado-nombre');
+const dnisAut = document.querySelectorAll('.autorizado-dni');
+for (let i = 0; i < dnisAut.length; i++) {
+if (nombresAut[i].value || dnisAut[i].value) { // Guardar aunque esté incompleto
+data.autorizados.push({ n: nombresAut[i].value, d: dnisAut[i].value });
+}
+}
+
+// Guardado de Hermanos
+data.hermanos = [];
+const nombresHermano = document.querySelectorAll('.hermano-nombre');
+const apellidosHermano = document.querySelectorAll('.hermano-apellido');
+const dnisHermano = document.querySelectorAll('.hermano-dni');
+const fechasNacHermano = document.querySelectorAll('.hermano-fechanac');
+for (let i = 0; i < dnisHermano.length; i++) {
+if (nombresHermano[i].value || dnisHermano[i].value) { // Guardar si hay algo
+data.hermanos.push({
+n: nombresHermano[i].value,
+a: apellidosHermano[i].value,
+d: dnisHermano[i].value,
+f: fechasNacHermano[i].value
+});
+}
+}
+
+localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+} catch (e) {
+console.warn("No se pudo guardar el caché del formulario: ", e);
+}
+}
+
+function cargarFormDesdeCache() {
+try {
+const data = JSON.parse(localStorage.getItem(CACHE_KEY));
+if (!data) return;
+
+document.querySelectorAll('.form-cache').forEach(el => {
+const key = el.id || el.name;
+if (!key) return;
+
+if (data[key] !== undefined) {
+if (el.type === 'radio') {
+el.checked = (el.value === data[key]);
+} else {
+el.value = data[key];
+}
+}
+});
+
+// Carga de Autorizados
+if (data.autorizados && data.autorizados.length > 0) {
+const autContainer = document.getElementById('autorizados-container');
+autContainer.innerHTML = '';
+data.autorizados.forEach(aut => {
+addAutorizadoCampos(aut.n || '', aut.d || '');
+});
+}
+
+// Carga de Hermanos
+if (data.hermanos && data.hermanos.length > 0) {
+const hermContainer = document.getElementById('hermanos-container');
+hermContainer.innerHTML = '';
+data.hermanos.forEach(herm => {
+addAutorizadoCampos(); // Añade la fila
+// Rellena los campos de la fila recién añadida (la última)
+hermContainer.querySelector('.hermano-nombre:last-of-type').value = herm.n || '';
+hermContainer.querySelector('.hermano-apellido:last-of-type').value = herm.a || '';
+hermContainer.querySelector('.hermano-dni:last-of-type').value = herm.d || '';
+const fechaInput = hermContainer.querySelector('.hermano-fechanac:last-of-type');
+fechaInput.value = herm.f || '';
+// Calcular edad
+const edadDivId = fechaInput.getAttribute('oninput').match(/'(hermano_edad_\d+)'/)[1]; // <-- CORREGIDO a 'oninput'
+calcularYMostrarEdad(herm.f, document.getElementById(edadDivId));
+});
+}
+
+calcularYMostrarEdad();
+
+// (Punto 28) Restauradas
+toggleTransferenciaInfo();
+// toggleCantidadCuotas(); // Sigue eliminada porque el div no existe
+
+} catch (e) {
+console.warn("No se pudo cargar el caché del formulario: ", e);
+}
+}
+
+function limpiarCache() {
+localStorage.removeItem(CACHE_KEY);
+}
+
+// =========================================================
+// LISTENERS DE EVENTOS (MOVIDO A 'Eventos.html')
+// =========================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+
+// (Punto 9) Al cargar, asegurar que haya al menos un autorizado
+if (document.querySelectorAll('.autorizado-nombre').length === 0) {
+addAutorizadoCampos();
+}
+
+// CÓDIGO DE INICIALIZACIÓN (Se queda aquí)
+cargarFormDesdeCache();
+toggleEspecifique('practicaDeporte', 'especifiqueDeporte');
+toggleEspecifique('tieneEnfermedad', 'especifiqueEnfermedad');
+toggleEspecifique('esAlergico', 'especifiqueAlergia');
+toggleTransferenciaInfo();
+toggleCuotasInfo();
+// toggleCantidadCuotas(); // No es necesario
+
+// (PUNTO 30) ADJUNTAR EL LISTENER DE 'input' AQUÍ TAMBIÉN
+document.getElementById('fechaNacimiento').addEventListener('input', calcularYMostrarEdad);
+
+}); // <-- FIN DEL DOMContentLoaded
+</script>

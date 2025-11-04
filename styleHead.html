@@ -1,0 +1,156 @@
+<style>
+  /* (Estilos específicos de esta página) */
+  #cantidadCuotasContainer,
+  #transferencia-info {
+    display: none;
+  }
+
+  /* (h) Estilo para el loader de aptitud */
+  #loader-aptitud {
+    display: none;
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* (Punto 5) Estilo para los campos dinámicos */
+  .grupo-telefono {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .grupo-telefono .telefono-area-code {
+    width: 20%;
+    margin-bottom: 0;
+    /* Anular margen inferior */
+  }
+
+  .grupo-telefono .telefono-numero {
+    flex-grow: 2;
+    margin-bottom: 0;
+    /* Anular margen inferior */
+  }
+
+  /* (Punto 5) Estilos para Hermanos */
+  #hermanos-container .fila-dinamica {
+    background-color: #f9f9f9;
+  }
+
+  .hermano-campos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* (Punto 10 y 33) Estilos para Transferencia y Cuotas-Transferencia */
+  #transferencia-info, #cuotas-transferencia-info {
+    background-color: #fdf5e6;
+    border: 1px solid #e67e22;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 10px;
+  }
+
+  #transferencia-info p, #cuotas-transferencia-info p {
+    margin: 5px 0;
+    font-weight: normal; /* <-- MODIFICADO: quitado el bold general */
+  }
+
+  #transferencia-info strong, #cuotas-transferencia-info strong {
+    font-family: monospace;
+    font-size: 1.1em;
+    color: #c0392b;
+    font-weight: bold; /* <-- Asegurarse que los strong sean bold */
+  }
+  
+  /* (NUEVO) Anulación para los <strong> de las fechas (para que no sean monospace) */
+  #cuotas-transferencia-info .cuotas-fechas strong {
+    font-family: 'Arial', sans-serif;
+    color: var(--color-texto, #333); /* Heredar color de texto normal */
+    font-size: 1em;
+  }
+
+
+  #btn-copiar-alias, #btn-copiar-alias-cuotas {
+    background-color: #e67e22;
+    color: white;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    margin-top: 10px;
+    transition: background-color 0.3s;
+  }
+
+  #btn-copiar-alias:hover, #btn-copiar-alias-cuotas:hover {
+    background-color: #d35400;
+  }
+
+  /* (Punto 15) Estilos para el nuevo formulario de carga */
+  #cuota-selector-container,
+  #datos-externo-container,
+  #upload-file-container {
+    display: none;
+    /* Ocultos por defecto */
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+  }
+
+  #comprobante-manual-seccion label {
+    margin-top: 10px;
+    /* Espacio extra para labels */
+  }
+
+  #btn-submit-comprobante-manual {
+    background-color: var(--color-exito, #28a745);
+    width: 100%;
+    margin-top: 15px;
+  }
+
+  #btn-submit-comprobante-manual:hover {
+    background-color: #218838;
+  }
+
+  #btn-finalizar-upload {
+    background-color: var(--color-error, #dc3545);
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  #btn-finalizar-upload:hover {
+    background-color: #c82333;
+  }
+
+  #comprobante-manual-seccion input[type="text"],
+  #comprobante-manual-seccion select {
+    width: 100%;
+    /* Asegurar que los inputs usen todo el ancho */
+    box-sizing: border-box;
+    /* Incluir padding en el ancho */
+  }
+  /* Estilo para campos de Pre-Venta que no se pueden modificar */
+  .campo-bloqueado {
+    background-color: #eeeeee; /* Un gris claro */
+    cursor: not-allowed;
+    color: #555555;
+  }
+
+  /* (ELIMINADO) El bloque #cuotas-info se borró de aquí */
+  
+  /* (NUEVO) Estilo para el aviso de fecha de cuota en la pantalla de RE-PAGO */
+  .mensaje-cuota {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-weight: bold;
+    text-align: center;
+  }
+</style>

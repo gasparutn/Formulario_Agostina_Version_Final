@@ -1,0 +1,541 @@
+<style>
+  /* Estilos.css.html */
+  /* Regla Universal para box-sizing */
+  * {
+    box-sizing: border-box;
+    /* ¡CLAVE! Asegura que padding y borde sean internos al ancho */
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Variables CSS */
+  :root {
+    --color-principal: #007bff;
+    /* Azul de Bootstrap como principal */
+    --color-exito: #28a745;
+    /* Verde para éxito/pagado */
+    --color-error: #dc3545;
+    /* Rojo para errores */
+    --color-aviso: #ffc107;
+    /* Amarillo para avisos */
+    --color-texto: #333;
+    --color-textoform: #e74c3c;
+    --color-negro: #000000;
+  }
+
+  body::before {
+    z-index: -2;
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    /* <-- CAMBIO: De 30px a 0 para centrarla correctamente */
+    height: 100vh;
+    width: 100vw;
+
+    background-image: url('https://i.imgur.com/1F0Eoqy.jpeg');
+    background-size: contain;
+    /* <-- MODIFICADO: Vuelto a 'contain' para mobile */
+    background-position: center;
+    background-attachment: fixed;
+    padding: 20px;
+    /* <-- MODIFICADO: Restaurado padding original */
+    background-repeat: no-repeat;
+  }
+
+  body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    /* --- Resto del fondo balnco se pasa a negro --- */
+    background-color: #000000;
+    /* --- (IMAGEN DE FONDO) --- */
+  }
+
+  /* ---------------------------------------------------------------- */
+
+  .container {
+    max-width: 800px;
+    margin: auto;
+
+    padding: 25px;
+    background-color: rgba(255, 255, 255, 0.70);
+    /* <-- Opacidad reducida de 0.75 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    /* (V) Agregamos border-radius para un mejor look */
+    box-sizing: border-box;
+  }
+
+  h1,
+  h2 {
+    text-align: center;
+    color: var(--color-texto);
+    margin-bottom: 15px;
+  }
+
+  h3 {
+    background-color: rgba(0, 123, 255, 0.7);
+    /* Azul con 70% de opacidad para los títulos de sección */
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .form-section {
+    background-color: rgba(255, 255, 255, 0.65);
+    /* <-- Opacidad reducida de 0.7 */
+    /* Fondo blanco con opacidad para cada sección del formulario */
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+
+  #btn-submit-aptitud-manual {
+    font-size: 20px
+  }
+
+  label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--color-texto);
+    font-weight: bold;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="date"],
+  input[type="tel"],
+  select {
+    width: 94%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1em;
+    background-color: rgba(255, 255, 255, 0.9);
+    /* Fondo ligeramente transparente para inputs */
+  }
+
+  input[type="file"] {
+    display: none;
+    /* Oculta el input de archivo original */
+  }
+
+  .file-input-label {
+    display: inline-block;
+    padding: 10px 15px;
+    background-color: var(--color-principal);
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: background-color 0.3s ease;
+  }
+
+  .file-input-label:hover {
+    background-color: #0056b3;
+  }
+
+  .file-name {
+    display: block;
+    font-size: 0.9em;
+    color: #777;
+    margin-bottom: 15px;
+  }
+
+  .loader-archivo {
+    display: none;
+    text-align: center;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-bottom: 10px;
+    background-color: #f0f0f0;
+    color: #555;
+  }
+
+  .loader-archivo.exito {
+    background-color: #d4edda;
+    color: #155724;
+  }
+
+  .loader-archivo.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
+  button[type="submit"],
+  #btn-validar,
+  .btn-dinamico,
+  .btn-remover,
+  #btn-limpiar-form,
+  #btn-cancelar-upload,
+  #btn-pagar-pendiente {
+    background-color: var(--color-principal);
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    margin-top: 10px;
+    transition: background-color 0.3s ease;
+    width: 100%;
+  }
+
+  button[type="submit"]:hover,
+  #btn-validar:hover,
+  .btn-dinamico:hover,
+  #btn-limpiar-form:hover,
+  #btn-cancelar-upload:hover,
+  #btn-pagar-pendiente:hover {
+    background-color: #0056b3;
+  }
+
+  #btn-limpiar-form {
+    background-color: rgba(220, 53, 69, 0.8);
+    /* Rojo transparente */
+    margin-top: 20px;
+  }
+
+  #btn-limpiar-form:hover {
+    background-color: rgba(220, 53, 69, 1);
+  }
+
+  .btn-dinamico {
+    background-color: var(--color-exito);
+    width: auto;
+    margin-right: 10px;
+  }
+
+  .btn-dinamico:hover {
+    background-color: #218838;
+  }
+
+  .btn-remover {
+    background-color: var(--color-error);
+    width: 30px;
+    padding: 5px;
+    margin-top: 0;
+    margin-left: 5px;
+  }
+
+  .btn-remover:hover {
+    background-color: #c82333;
+  }
+
+  /* Contenedor general de las filas dinámicas (si existe) */
+  .fila-dinamica {
+    /* Asegura que los elementos internos se apilen */
+    display: block;
+    /* o display: flex; flex-direction: column; */
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  /* Campos de entrada dentro de la fila dinámica */
+  .fila-dinamica input[type="text"] {
+    width: 95% !important;
+    /* Asegura el ancho completo con un margen */
+    display: block !important;
+    /* Fuerza a que cada uno esté en su propia línea */
+  }
+
+  .loader {
+    display: none;
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--color-principal);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px auto;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .status {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+  }
+
+  .mensaje {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+  }
+
+  .exito {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+
+  .error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+
+  .aviso {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeeba;
+  }
+
+  .radio-group {
+    margin-bottom: 15px;
+  }
+
+  .radio-group label {
+    display: inline-block;
+    margin-right: 15px;
+    font-weight: normal;
+    color: #333;
+  }
+
+  .radio-group input[type="radio"] {
+    margin-right: 5px;
+    width: auto;
+    vertical-align: middle;
+  }
+
+  #edad-calculada {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: -10px;
+    margin-bottom: 15px;
+  }
+
+  #timer-seccion {
+    display: none;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 1.1em;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  #timer-countdown {
+    font-size: 1.5em;
+    color: var(--color-principal);
+  }
+
+
+  /* (J) NUEVOS ESTILOS PARA BOTONES DE PAGO FINALES */
+  .btn-final-volver {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 15px;
+    border-radius: 6px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    text-decoration: none;
+    text-align: center;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+
+  .btn-final-pago {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    /* <-- CAMBIO: De 94% a 100% para igualar al botón rojo */
+    padding: 15px;
+    border-radius: 6px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    text-decoration: none;
+    text-align: center;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+
+  /* (J) Botón Amarillo/Azul */
+  .btn-final-pago {
+    background-color: rgba(255, 193, 7, 0.9);
+    /* Amarillo (var --color-aviso) */
+    color: var(--color-principal);
+    border: 2px solid var(--color-principal);
+  }
+
+  .btn-final-pago:hover {
+    background-color: rgba(255, 193, 7, 1);
+  }
+
+  /* (J) Botón Rojo (con borde transparente para igualar altura) */
+  .btn-final-volver {
+    background-color: rgba(231, 76, 60, 0.9);
+    /* Rojo (var --color-error) */
+    color: white;
+    border: 2px solid transparent;
+    /* Mantiene la altura igual al otro botón */
+  }
+
+  .btn-final-volver:hover {
+    background-color: rgba(231, 76, 60, 1);
+  }
+
+  /* --- INICIO ESTILOS PUNTO 15 (Movidos de Index.html) --- */
+
+  /* (Punto 15) Estilos para el nuevo formulario de carga */
+  #cuota-selector-container,
+  #datos-externo-container,
+  #upload-file-container {
+    display: none;
+    /* Ocultos por defecto */
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+  }
+
+  #comprobante-manual-seccion label {
+    margin-top: 10px;
+    /* Espacio extra para labels */
+  }
+
+  #btn-submit-comprobante-manual {
+    background-color: var(--color-exito, #28a745);
+    width: 100%;
+    margin-top: 15px;
+    /* (SOLUCIÓN) Más altura y mejor texto */
+    padding: 15px 10px;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+
+  #btn-submit-comprobante-manual:hover {
+    background-color: #218838;
+  }
+
+  #btn-finalizar-upload {
+    background-color: var(--color-error, #dc3545);
+    width: 100%;
+    margin-top: 10px;
+    /* (SOLUCIÓN) Más altura y mejor texto */
+    padding: 15px 10px;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+
+  #btn-finalizar-upload:hover {
+    background-color: #c82333;
+  }
+
+  #comprobante-manual-seccion input[type="text"],
+  #comprobante-manual-seccion select {
+    width: 100%;
+    /* Asegurar que los inputs usen todo el ancho */
+    box-sizing: border-box;
+    /* Incluir padding en el ancho */
+  }
+
+  /* --- Nuevos Estilos para Contraste de Fondo --- */
+  .contrasted-background {
+    filter: contrast(120%) brightness(85%);
+    /* Aumenta contraste 20%, oscurece 15% */
+  }
+
+  /* Opcional: si quieres un contraste más fuerte */
+  .contrasted-background-strong {
+    filter: contrast(140%) brightness(75%);
+    /* Aumenta contraste 40%, oscurece 25% */
+  }
+
+  /* Opcional: si quieres un efecto más sutil */
+  .contrasted-background-subtle {
+    filter: contrast(110%) brightness(90%);
+    /* Aumenta contraste 10%, oscurece 10% */
+  }
+
+  /* --- (NUEVOS ESTILOS) Mensaje Post-Registro Hermanos --- */
+  .hermanos-post-registro {
+    background-color: #fff3cd;
+    /* var(--color-aviso) fondo */
+    color: #856404;
+    /* var(--color-aviso) texto */
+    border: 1px solid #ffeeba;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 25px;
+    text-align: left;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  .hermanos-post-registro h4 {
+    color: #856404;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+  }
+
+  .hermanos-post-registro p {
+    margin: 10px 0;
+  }
+
+  .hermanos-post-registro ol,
+  .hermanos-post-registro ul {
+    margin-left: 20px;
+    padding-left: 15px;
+  }
+
+  .hermanos-post-registro li {
+    margin-bottom: 5px;
+  }
+
+  .hermanos-post-registro-lista {
+    list-style-type: none;
+    padding-left: 5px;
+    font-size: 0.95em;
+  }
+
+  .hermanos-post-registro-lista .check {
+    color: var(--color-exito);
+    font-weight: bold;
+  }
+
+  .hermanos-post-registro-lista .cruz {
+    color: var(--color-error);
+    font-weight: bold;
+  }
+</style>

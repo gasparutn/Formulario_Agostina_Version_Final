@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario de Registro</title>
+  <?!= HtmlService.createHtmlOutputFromFile('Estilos.css').getContent(); ?>
+  <?!= HtmlService.createHtmlOutputFromFile('styleHead').getContent(); ?>
+</head>
+
+
+<body class="contrasted-background">
+  <div class="container">
+    <h1>Formulario de Inscripción</h1>
+    <h2>Colonia de Verano 2025</h2>
+
+
+    <div id="validacion-seccion">
+      <div class="form-section">
+        <h3>Paso 1: Verificación de DNI</h3>
+        <label for="tipoInscripto">¿Es un nuevo inscripto o ya participó en la colonia anteriormente?</label>
+        <select id="tipoInscripto" name="tipoInscripto" required>
+          <option value="nuevo">Soy Nuevo Inscripto</option>
+          <option value="anterior">Soy Inscripto Anterior</option>
+          <option value="preventa">Soy Inscripto PRE-VENTA</option>
+        </select>
+        <label for="dni-input">Ingrese el DNI del inscripto (sin puntos)</label>
+        <input type="tel" id="dni-input" required pattern="[0-9]{8}" inputmode="numeric" maxlength="8" placeholder="Ej: 12345678" title="El DNI debe tener exactamente 8 dígitos numéricos.">
+        <button type="button" id="btn-validar">Verificar DNI</button>
+      </div>
+      <div class="loader" id="loader-validacion">
+        <div class="spinner"></div>
+        <p>Verificando...</p>
+      </div>
+      <div class="status" id="status-validacion"></div>
+      <div id="timer-seccion">
+        <p>El cupo disponible se obtiene al confirmar el registro con todos los datos completos y el pago del mismo.</p>
+        <p>Cargando formulario en <strong id="timer-countdown">10</strong> segundos...</p>
+      </div>
+    </div>
+
+
+    <div id="registro-seccion" style="display:none;">
+      <form id="registroForm">
+        <input type="hidden" id="esHermanoCompletando" value="false">
+
+        <div class="form-section">
+          <h3>Paso 2: Completar Datos del Inscripto</h3>
+          <label for="nombre">Nombre Completo:</label>
+          <input type="text" id="nombre" name="nombre" class="form-cache" required>
+          <label for="apellido">Apellido Completo:</label>
+          <input type="text" id="apellido" name="apellido" class="form-cache" required>
+
+          <label for="dni">DNI: (sin puntos)</label>
+          <input type="text" id="dni" name="dni" class="form-cache" required readonly inputmode="numeric">
+          <label for="fechaNacimiento">Fecha de Nacimiento:</label>
+          <input type="date" id="fechaNacimiento" name="fechaNacimiento" class="form-cache" required min="2010-01-01" max="2023-12-31">
+          <div id="edad-calculada"></div>
+        </div>
+
+
+        <div class="form-section">
+          <h3>Información Adicional</h3>
+          <label for="colegioJardin">Colegio / Jardín:</label>
+          <input type="text" id="colegioJardin" name="colegioJardin" class="form-cache" required>
+          <label for="obraSocial">Obra Social:</label>
+          <input type="text" id="obraSocial" name="obraSocial" class="form-cache" required>
+        </div>
+
+
+        <div class="form-section">
+          <h3>Datos de Adultos Responsables</h3>
+          <label for="adultoResponsable1">Responsable 1: (Nombre y Apellido)</label>
+          <input type="text" id="adultoResponsable1" name="adultoResponsable1" class="form-cache" required>
+
+          <label for="dniResponsable1">DNI Responsable 1: (sin puntos)</label>
+          <input type="tel" id="dniResponsable1" name="dniResponsable1" class="form-cache" required pattern="[0-9]{8}" inputmode="numeric" maxlength="8" title="El DNI debe tener exactamente 8 dígitos numéricos.">
+
+          <label for="telAreaResp1">Teléfono Responsable 1:</label>
+          <div class="grupo-telefono">
+            <input type="tel" id="telAreaResp1" name="telAreaResp1" class="telefono-area-code form-cache" placeholder="Cod. Área (sin 0)" required pattern="^[1-9][0-9]{1,4}$" title="Ingrese el Código de Área sin el 0 inicial.">
+            <input type="tel" id="telNumResp1" name="telNumResp1" class="telefono-numero form-cache" placeholder="Número (sin 15)" required pattern="^[0-9]{6,10}$" title="Ingrese el número de teléfono sin el 15 inicial.">
+          </div>
+
+          <label for="adultoResponsable2">Responsable 2:(Opcional)</label>
+          <input type="text" id="adultoResponsable2" name="adultoResponsable2" class="form-cache" placeholder="Nombre y Apellido">
+
+          <label for="telAreaResp2">Teléfono Responsable 2: (Opcional)</label>
+          <div class="grupo-telefono">
+            <input type="tel" id="telAreaResp2" name="telAreaResp2" class="telefono-area-code form-cache" placeholder="Cod. Área (sin 0)" pattern="^[1-9][0-9]{1,4}$" title="Ingrese el Código de Área sin el 0 inicial.">
+            <input type="tel" id="telNumResp2" name="telNumResp2" class="telefono-numero form-cache" placeholder="Número (sin 15)" pattern="^[0-9]{6,10}$" title="Ingrese el número de teléfono sin el 15 inicial.">
+          </div>
+
+          <label for="email">Email (Contacto Principal 1):</label>
+          <input type="email" id="email" name="email" class="form-cache" placeholder="micorreo@midominio.com" required>
+
+          <label style="margin-top: 20px;">Personas autorizadas a retirar: (Mínimo 1)</label>
+          <div id="autorizados-container">
+          </div>
+          <button type="button" id="btn-add-autorizado" class="btn-dinamico">Agregar Autorizado:</button>
+        </div>
+
+
+        <div class="form-section" id="seccion-hermanos">
+          <h3>(Opcional) Agregar Hermanos/as</h3>
+          <p>Asegure el cupo de sus otros hijos. Se creará un pre-registro para ellos.</p>
+          <div id="hermanos-container">
+          </div>
+          <button type="button" id="btn-add-hermano" class="btn-dinamico">Agregar Hermano/a:</button>
+        </div>
+
+
+        <div class="form-section">
+          <h3>Información de Salud</h3>
+          <div class="radio-group">
+            <label>¿Practica algún deporte o actividad extracurricular?</label>
+            <label><input type="radio" name="practicaDeporte" value="Sí" class="form-cache" required> Sí</label>
+            <label><input type="radio" name="practicaDeporte" value="No" class="form-cache"> No</label>
+          </div>
+          <input type="text" id="especifiqueDeporte" name="especifiqueDeporte" class="form-cache" placeholder="Si la respuesta es sí, especifique cuál" style="display:none;">
+
+          <div class="radio-group">
+            <label>¿Tiene alguna enfermedad preexistente o medicación especial?</label>
+            <label><input type="radio" name="tieneEnfermedad" value="Sí" class="form-cache" required> Sí</label>
+            <label><input type="radio" name="tieneEnfermedad" value="No" class="form-cache"> No</label>
+          </div>
+          <input type="text" id="especifiqueEnfermedad" name="especifiqueEnfermedad" class="form-cache" placeholder="Si la respuesta es sí, especifique" style="display:none;">
+
+          <div class="radio-group">
+            <label>¿Es alérgico/a a algo?</label>
+            <label><input type="radio" name="esAlergico" value="Sí" class="form-cache" required> Sí</label>
+            <label><input type="radio" name="esAlergico" value="No" class="form-cache"> No</label>
+          </div>
+          <input type="text" id="especifiqueAlergia" name="especifiqueAlergia" class="form-cache" placeholder="Si la respuesta es sí, especifique" style="display:none;">
+        </div>
+
+
+        <div class="form-section">
+          <h3>Documentación y Pago</h3>
+          <label for="certificadoAptitud">Certificado de Aptitud Física: (Opcional)</label>
+          <label for="certificadoAptitud" class="file-input-label">Seleccionar Certificado</label>
+          <input type="file" id="certificadoAptitud" name="certificadoAptitud" accept="image/jpeg, image/png, application/pdf">
+          <span id="certificadoAptitudName" class="file-name">Ningún archivo seleccionado</span>
+          <div class="loader-archivo" id="loader-certificado"></div>
+          <input type="hidden" id="urlCertificadoAptitud" name="urlCertificadoAptitud">
+
+          <label for="fotoCarnet">Foto Carnet 4x4: (Requerida)</label>
+          <label for="fotoCarnet" class="file-input-label">Seleccionar Foto</label>
+          <input type="file" id="fotoCarnet" name="fotoCarnet" accept="image/jpeg, image/png">
+          <span id="fotoCarnetName" class="file-name">Ningún archivo seleccionado</span>
+          <div class="loader-archivo" id="loader-foto"></div>
+          <input type="hidden" id="urlFotoCarnet" name="urlFotoCarnet">
+
+          <div class="radio-group">
+            <label><strong>¿Es Socio del CLUB?</strong></label>
+            <label>
+    <input type="radio" name="esSocio" value="SÍ" class="form-cache" required>
+    <span style="color:red;">Sí</span>
+  </label>
+            <label>
+    <input type="radio" name="esSocio" value="NO" class="form-cache">
+    <span style="color:red;">No</span>
+  </label>
+          </div>
+          <label for="jornada">Seleccione la Jornada:</label>
+          <span id="jornada-cupo-msg" style="display: none; color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px;">(No hay cupo Jornada Extendida)</span>
+          <select id="jornada" name="jornada" class="form-cache" required>
+<option value="">-- Por favor, elija una opción --</option>
+<option value="Jornada Normal">Jornada Normal</option>
+<option value="Jornada Normal extendida" id="opcion-jornada-extendida">Jornada Normal Extendida</option>
+</select>
+
+          <label for="metodoPago">Seleccione el Método de Pago</label>
+          <select id="metodoPago" name="metodoPago" class="form-cache" required>
+            <option value="">-- Por favor, elija una opción --</option>
+            <option value="Pago 1 Cuota Deb/Cred MP(Total)" style.display = "none">Pago 1 Cuota Deb/Cred MP(Total)</option>
+            <option value="Pago en Cuotas">Pago en 3 Cuotas</option> 
+            <option value="Pago Efectivo (Adm del Club)">Pago Efectivo (Adm del Club)</option>
+            <option value="Transferencia">Transferencia(Bancaria,Envío Dinero,etc)</option>
+          </select>
+
+          <div id="transferencia-info">
+            <p>TITULAR DE LA CUENTA: <strong>Walter Jonas Marrello</strong></p>
+            <p>Alias: <strong id="alias-transferencia">clubhipicomendoza</strong></p>
+            <button type="button" id="btn-copiar-alias">Copiar Alias</button>
+            <p style="margin-top: 10px; font-size: 0.9em;">Luego de transferir, deberá volver a ingresar con su DNI para
+              subir el comprobante.</p>
+          </div>
+
+          <div id="cuotas-transferencia-info" style="display: none;">
+            <p>EL Pago de las cuotas puede ser en EFECTIVO o TRANSFERENCIA. Si es efectivo, acérquese a la Secretaría
+              del Club de Martes a Sábados de 11hs a 18hs.Si es por transferencia realice la transferencia a la
+              siguiente cuente:</p>
+            <p><strong>TITULAR DE LA CUENTA:</strong> <strong>Walter Jonas Marrello</strong></p>
+            <p><strong>Alias:</strong> <strong id="alias-transferencia-cuotas">clubhipicomendoza</strong></p>
+            <button type="button" id="btn-copiar-alias-cuotas">Copiar Alias</button>
+
+            <p class="cuotas-fechas" style="margin-top: 15px;"><strong>Fechas de Vencimiento de Cuotas:</strong></p>
+            <p class="cuotas-fechas"><strong>1ª cuota:</strong> del 1 al 10 de noviembre 2025</p>
+            <p class="cuotas-fechas"><strong>2ª cuota:</strong> del 1 al 10 de diciembre 2025</p>
+            <p class="cuotas-fechas"><strong>3ª cuota:</strong> del 1 al 10 de enero 2026</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">Luego de transferir, deberá volver a ingresar con su DNI para
+              validar y después subir el comprobante</p>
+          </div>
+        </div>
+
+        <button type="submit" id="submit-button">Registrar y Continuar</button>
+        <button type="button" id="btn-limpiar-form">VOLVER (Limpiar Formulario)</button>
+
+      </form>
+      <div class="loader" id="loader-registro">
+        <div class="spinner"></div>
+        <p>Procesando registro... Por favor, espere.</p>
+      </div>
+      <div class="status" id="status-registro"></div>
+    </div>
+  </div>
+
+
+  <script>
+    var GLOBAL_APP_URL = "<?= appUrl ?>";
+  </script>
+
+  <?!= HtmlService.createHtmlOutputFromFile('js').getContent(); ?>
+  <?!= HtmlService.createHtmlOutputFromFile('Eventos').getContent(); ?>
+</body>
+
+</html>
