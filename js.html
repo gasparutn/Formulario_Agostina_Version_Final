@@ -9,6 +9,9 @@ let numeroDeTurnoGuardado = null;
 // DEFINICIONES DE FUNCIONES
 // =========================================================
 
+/**
+ * (CORREGIDO) Handler para fallo de PASO 1 (Registro)
+ */
 function handleRegistroFailure(error) {
   document.getElementById('submit-button').disabled = false;
   document.getElementById('loader-registro').style.display = 'none';
@@ -16,6 +19,26 @@ function handleRegistroFailure(error) {
   document.getElementById('status-registro').innerHTML = `<div class="mensaje error"><strong>Error al Registrar:</strong> ${errorMessage}</div>`;
 }
 
+/**
+ * (NUEVO) Handler para éxito de PASO 1. Llama a PASO 2.
+ */
+function handlePaso1Success(response) {
+  if (response.status === 'OK_REGISTRO') {
+    // Pasa al Paso 2
+    document.getElementById('loader-registro').querySelector('p').textContent = 'Generando link de pago...';
+    google.script.run
+      .withSuccessHandler(handlePagoSuccess) // Handler de éxito de Paso 2
+      .withFailureHandler(handlePagoFailure) // Handler de fallo de Paso 2
+      .paso2_crearPagoYEmail(response.datos, response.numeroDeTurno, response.hermanosRegistrados);
+  } else {
+    // Si 'paso1_registrarRegistro' devolvió un error lógico (DNI duplicado, etc.)
+    handleRegistroFailure(response); // Usa el handler de fallo de registro
+  }
+}
+
+/**
+ * Handler para éxito de PASO 2 (Creación de Pago)
+ */
 function handlePagoSuccess(response) {
   document.getElementById('registroForm').style.display = 'none';
   document.getElementById('loader-registro').style.display = 'none';
@@ -101,6 +124,9 @@ function handlePagoSuccess(response) {
   });
 }
 
+/**
+ * (CORREGIDO) Handler para fallo de PASO 2 (Creación de Pago)
+ */
 function handlePagoFailure(error) {
   document.getElementById('submit-button').disabled = false;
   document.getElementById('loader-registro').style.display = 'none';
@@ -408,6 +434,9 @@ function handleValidationSuccess(response) {
   }
 }
 
+/**
+ * Handler para fallo de PASO 1 (Validación)
+ */
 function handleValidationFailure(error) {
   document.getElementById('btn-validar').disabled = false;
   document.getElementById('loader-validacion').style.display = 'none';
@@ -1031,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       document.getElementById('btn-validar').click();
     }, 100);
-
+  }
 
 
   if (document.querySelectorAll('.autorizado-nombre').length === 0) {

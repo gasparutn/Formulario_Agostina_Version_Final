@@ -703,6 +703,11 @@ function calcularEdad(fechaNacimientoStr) {
   return { anos, meses, dias };
 }
 
+/**
+* (CORREGIDO)
+* Eliminado 'SpreadsheetApp.flush()' para evitar cuelgues
+* en la validación.
+*/
 function obtenerEstadoRegistro() {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -730,7 +735,7 @@ function obtenerEstadoRegistro() {
 
     hojaConfig.getRange('B2').setValue(registrosActuales);
     hojaConfig.getRange('B5').setValue(registrosJornadaExtendida);
-    SpreadsheetApp.flush();
+    // SpreadsheetApp.flush(); // <-- (CORRECCIÓN) ELIMINADO PARA VELOCIDAD
 
     return {
       alcanzado: registrosActuales >= limiteCupos,

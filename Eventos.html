@@ -1,4 +1,3 @@
-
 <script>
   // =========================================================
 // (NUEVO ARCHIVO) LISTENERS DE EVENTOS
@@ -357,12 +356,12 @@ let msg = '<strong>Error:</strong> El Certificado de Aptitud se está subiendo o
 return validationFail(msg, form.certificadoAptitud);
 }
 
-// --- 7. Envío al Servidor ---
+// --- 7. Envío al Servidor (CORREGIDO) ---
 loader.querySelector('p').textContent = 'Procesando registro... Por favor, espere.';
 
 google.script.run
-.withSuccessHandler(handleRegistroSuccess)
-.withFailureHandler(handleRegistroFailure)
+.withSuccessHandler(handlePaso1Success) // <--- CORREGIDO (Llama al handler de Paso 1)
+.withFailureHandler(handleRegistroFailure) // <--- CORREGIDO (Llama al handler de fallo de Paso 1)
 .paso1_registrarRegistro(formDataObject);
 
 } catch (err) {
