@@ -183,6 +183,7 @@ function actualizarDatosHermano(datos) {
 * (PASO 2 - MODIFICADO)
 * Eliminada toda la lógica de Mercado Pago.
 * Ahora solo envía confirmación para Efectivo, Transferencia o Cuotas (que son manuales).
+* (NUEVA MODIFICACIÓN) Eliminada la llamada a enviarEmailConfirmacion.
 */
 function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null) {
   try {
@@ -200,7 +201,7 @@ function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null)
       message = `¡Registro guardado con éxito!!. Contacte a la administración para coordinar el pago.`;
     }
 
-    // (Punto 29) Email automático desactivado.
+    // (MODIFICADO) Email automático desactivado.
     // enviarEmailConfirmacion(datos, numeroDeTurno, null); // vive en Código.js
     Logger.log(`(Paso 2) Registro exitoso para DNI ${dniRegistrado}. Método: ${datos.metodoPago}. Email desactivado.`);
 

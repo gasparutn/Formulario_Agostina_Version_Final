@@ -43,7 +43,6 @@ function doGet(e) {
 /**
 * (MODIFICADO)
 * 'doPost' ya no es necesario para el webhook de MP.
-* Se deja vacío o se elimina. Lo comentaré por seguridad.
 */
 function doPost(e) {
   // return handleMPWebhook(e); // Lógica de MP eliminada
@@ -302,20 +301,11 @@ function registrarDatos(datos) {
   }
 }
 
-// (MODIFICADO) Esta función ahora vive en Pagos.js
-// function actualizarDatosHermano(datos) { ... }
-
-// (MODIFICADO) Esta función ahora vive en Pagos.js
-// function obtenerPrecioDesdeConfig(metodoPago, cantidadCuotas, hojaConfig) { ... }
-
-
-// (MODIFICADO) Esta función ahora vive en Pagos.js
-// function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null) { ... }
-
 /**
 * (MODIFICADO)
-* Añade el 'case' para 'mp_cuota_total' (Cancelación total)
-* para que guarde en la columna AQ.
+* - Cambia el estado de pago a "Pagado" para pagos totales.
+* - Actualiza el estado de cuotas individuales.
+* - Devuelve el estado de pago actualizado al cliente.
 */
 function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
   const lock = LockService.getScriptLock();
@@ -347,40 +337,79 @@ function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
 
     if (celdaEncontrada) {
       const fila = celdaEncontrada.getRow();
-      let columnaDestinoArchivo; 
+      let columnaDestinoArchivo;
+      let mensajeExito = "";
+      let estadoFinal = ""; // "Pagado" o "Cuotas (En revisión)"
 
+      // Guardar datos del pagador
       hoja.getRange(fila, COL_PAGADOR_NOMBRE_MANUAL).setValue(datosExtras.nombrePagador); // AN (40)
       hoja.getRange(fila, COL_PAGADOR_DNI_MANUAL).setValue(datosExtras.dniPagador); // AO (41)
 
       switch (tipoComprobante) {
-        case 'total_mp': // Mantenido por retrocompatibilidad si estuviera cacheado
-        case 'mp_total': // Renombrado (a)
+        case 'total_mp': // Mantenido por retrocompatibilidad
+        case 'mp_total': // (a)
         case 'externo':  // (c)
         case 'mp_cuota_total': // (b.4)
           columnaDestinoArchivo = COL_COMPROBANTE_MANUAL_TOTAL_EXT; // AQ (43)
+          hoja.getRange(fila, columnaDestinoArchivo).setValue(fileUrl);
+          hoja.getRange(fila, COL_ESTADO_PAGO).setValue("Pagado");
+          // También marcar las 3 cuotas como pagadas (informativo)
+          hoja.getRange(fila, COL_CUOTA_1, 1, 3).setValues([["Pagada", "Pagada", "Pagada"]]);
+          mensajeExito = "¡Pago total registrado con éxito! Su inscripción está completa.";
+          estadoFinal = "Pagado";
           break;
+        
         case 'cuota1_mp': // Mantenido por retrocompatibilidad
         case 'mp_cuota_1': // (b.1)
           columnaDestinoArchivo = COL_COMPROBANTE_MANUAL_CUOTA1; // AR (44)
+          hoja.getRange(fila, columnaDestinoArchivo).setValue(fileUrl);
+          hoja.getRange(fila, COL_CUOTA_1).setValue("Pagada (En revisión)"); // AE (31)
+          mensajeExito = "Comprobante de Cuota 1 subido con éxito.";
           break;
+        
         case 'cuota2_mp': // Mantenido por retrocompatibilidad
         case 'mp_cuota_2': // (b.2)
           columnaDestinoArchivo = COL_COMPROBANTE_MANUAL_CUOTA2; // AS (45)
+          hoja.getRange(fila, columnaDestinoArchivo).setValue(fileUrl);
+          hoja.getRange(fila, COL_CUOTA_2).setValue("Pagada (En revisión)"); // AF (32)
+          mensajeExito = "Comprobante de Cuota 2 subido con éxito.";
           break;
+        
         case 'cuota3_mp': // Mantenido por retrocompatibilidad
         case 'mp_cuota_3': // (b.3)
           columnaDestinoArchivo = COL_COMPROBANTE_MANUAL_CUOTA3; // AT (46)
+          hoja.getRange(fila, columnaDestinoArchivo).setValue(fileUrl);
+          hoja.getRange(fila, COL_CUOTA_3).setValue("Pagada (En revisión)"); // AG (33)
+          mensajeExito = "Comprobante de Cuota 3 subido con éxito.";
           break;
+        
         default:
           throw new Error(`Tipo de comprobante no reconocido: ${tipoComprobante}`);
       }
 
-      hoja.getRange(fila, columnaDestinoArchivo).setValue(fileUrl);
+      // Si no fue un pago total, revisamos el estado de las cuotas
+      if (estadoFinal !== "Pagado") {
+        // Leemos los valores actualizados de las cuotas
+        const [c1, c2, c3] = hoja.getRange(fila, COL_CUOTA_1, 1, 3).getValues()[0];
+        const pagadas = [c1, c2, c3].filter(c => String(c).startsWith("Pagada")).length;
+        const cantidadCuotasRegistrada = parseInt(hoja.getRange(fila, COL_CANTIDAD_CUOTAS).getValue()) || 3; // Asumir 3 si no está
 
-      hoja.getRange(fila, COL_ESTADO_PAGO).setValue("En revisión");
+        if (pagadas >= cantidadCuotasRegistrada) {
+          hoja.getRange(fila, COL_ESTADO_PAGO).setValue("Pagado");
+          mensajeExito = `¡Felicidades! Se registró la Cuota ${tipoComprobante.slice(-1)}. Ha completado las ${cantidadCuotasRegistrada} cuotas. Su inscripción está completa.`;
+          estadoFinal = "Pagado";
+        } else {
+          const pendientes = cantidadCuotasRegistrada - pagadas;
+          hoja.getRange(fila, COL_ESTADO_PAGO).setValue("Cuotas (En revisión)");
+          mensajeExito = `Se registró el pago de la cuota. Le quedan ${pendientes} cuota${pendientes > 1 ? 's' : ''} pendiente${pendientes > 1 ? 's' : ''}.`;
+          estadoFinal = "Cuotas (En revisión)";
+        }
+      }
 
-      Logger.log(`Comprobante manual [${tipoComprobante}] subido para DNI ${dniLimpio} en fila ${fila}.`);
-      return { status: 'OK', message: '¡Comprobante subido con éxito! Será revisado por la administración.' };
+      Logger.log(`Comprobante manual [${tipoComprobante}] subido para DNI ${dniLimpio} en fila ${fila}. Estado final: ${estadoFinal}`);
+      // Devolvemos el estado final al cliente
+      return { status: 'OK', message: mensajeExito, estadoPago: estadoFinal };
+
     } else {
       Logger.log(`No se encontró DNI ${dniLimpio} para subir comprobante manual.`);
       return { status: 'ERROR', message: `No se encontró el registro para el DNI ${dniLimpio}. Asegúrese de que el DNI del inscripto sea correcto.` };
@@ -776,9 +805,6 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
   const estadoInscriptoTrim = estadoInscripto ? String(estadoInscripto).trim() : "";
 
   if (estadoInscriptoTrim.toLowerCase().includes('hermano/a') && !metodoPago) { 
-    // ... (lógica de hermano sin cambios)...
-    // (Resto de la lógica de HERMANO_COMPLETAR omitida por brevedad, es idéntica a la anterior)
-    // ...
      const estadoTrimLower = estadoInscriptoTrim.toLowerCase();
 
     if (estadoTrimLower.includes('nuevo') && tipoInscripto !== 'nuevo') {
@@ -847,13 +873,25 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
   }
 
   if (String(estadoPago).includes('En revisión')) {
+     // (MODIFICADO) Revisar si es revisión de cuotas o total
+     let mensajeRevision = `⚠️ El DNI ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO. Su pago está "En revisión".`;
+     if (metodoPago === 'Pago en Cuotas') {
+        const [c1, c2, c3] = hojaRegistro.getRange(filaRegistro, COL_CUOTA_1, 1, 3).getValues()[0];
+        const pagadas = [c1, c2, c3].filter(c => String(c).startsWith("Pagada")).length;
+        if (pagadas < cantidadCuotasRegistrada) {
+          const pendientes = cantidadCuotasRegistrada - pagadas;
+          mensajeRevision = `⚠️ El DNI ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO. Se está revisando su último pago de cuota. Le quedan ${pendientes} cuota${pendientes > 1 ? 's' : ''} pendiente${pendientes > 1 ? 's' : ''}.`;
+          proximaCuotaPendiente = `C${pagadas + 1}`; // Asumir que la próxima es la pendiente
+        }
+     }
+
     return {
       status: 'REGISTRO_ENCONTRADO',
-      message: `⚠️ El DNI ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO. Su pago está "En revisión".`,
+      message: mensajeRevision,
       adeudaAptitud: adeudaAptitud,
       cantidadCuotas: cantidadCuotasRegistrada,
       metodoPago: metodoPago,
-      proximaCuotaPendiente: null,
+      proximaCuotaPendiente: proximaCuotaPendiente, // Puede ser null o la próxima cuota
       pagoTotalMPVisible: pagoTotalMPVisible,
       datos: datosParaEdicion // (NUEVO) Enviar datos para editar
     };
@@ -900,74 +938,6 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
   };
 }
 
-
-function enviarEmailConfirmacion(datos, numeroDeTurno, init_point = null, overrideMetodo = null) {
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const hojaConfig = ss.getSheetByName(NOMBRE_HOJA_CONFIG);
-
-    if (!hojaConfig || !datos.email || hojaConfig.getRange('B8').getValue() !== true) {
-      Logger.log("Envío de email deshabilitado o sin email.");
-      return;
-    }
-    
-    // (MODIFICADO) Ya no hay lógica de MP, solo manual
-    let asunto = "";
-    let cuerpoOriginal = "";
-    let cuerpoFinal = "";
-    const metodo = overrideMetodo || datos.metodoPago;
-    const nombreCompleto = `${datos.nombre} ${datos.apellido}`;
-
-    if (metodo === 'Pago Efectivo (Adm del Club)' || metodo === 'registro_sin_pago') {
-      asunto = hojaConfig.getRange('E13:H13').getValue();
-      cuerpoOriginal = hojaConfig.getRange('D15:H19').getValue();
-      if (!asunto) asunto = "Confirmación de Registro (Pago Efectivo)";
-      if (!cuerpoOriginal) cuerpoOriginal = "Su cupo ha sido reservado.\n\nInscripto: {{nombreCompleto}}\nTurno: {{numeroDeTurno}}\n\nPor favor, acérquese a la administración.";
-
-    } else if (metodo === 'Transferencia') {
-      asunto = "Confirmación de Registro (Transferencia)"; 
-      cuerpoOriginal = "Su cupo ha sido reservado.\n\nInscripto: {{nombreCompleto}}\nTurno: {{numeroDeTurno}}\n\n" +
-        "Por favor, realice la transferencia a:\n" +
-        "TITULAR DE LA CUENTA: Walter Jonas Marrello\n" +
-        "Alias: clubhipicomendoza\n\n" +
-        "IMPORTANTE: Una vez realizada, vuelva a ingresar al formulario con su DNI para subir el comprobante.";
-
-    } else if (metodo === 'Pago en Cuotas') {
-      asunto = hojaConfig.getRange('E24:G24').getValue(); // Reutilizamos el template de cuotas
-      cuerpoOriginal = hojaConfig.getRange('D26:H30').getValue();
-      if (!asunto) asunto = "Confirmación de Registro (Cuotas)";
-      if (!cuerpoOriginal) cuerpoOriginal = "Su cupo ha sido reservado.\n\nInscripto: {{nombreCompleto}}\nTurno: {{numeroDeTurno}}\n\nPor favor, abone la Cuota 1 por transferencia o en la administración.";
-
-      // (MODIFICADO) Se eliminan los links de MP
-       cuerpoOriginal = cuerpoOriginal
-        .replace("Link Cuota 1: {{linkCuota1}}", "Por favor, abone la Cuota 1 por transferencia (Alias: clubhipicomendoza) o en la administración.")
-        .replace("Link Cuota 2: {{linkCuota2}}", "")
-        .replace("Link Cuota 3: {{linkCuota3}}", "");
-
-    } else {
-      Logger.log(`Método de pago "${datos.metodoPago}" no reconocido para email.`);
-      return;
-    }
-
-    cuerpoFinal = cuerpoOriginal
-        .replace(/{{nombreCompleto}}/g, nombreCompleto)
-        .replace(/{{numeroDeTurno}}/g, numeroDeTurno);
-
-    /*
-    MailApp.sendEmail({
-    to: datos.email,
-    subject: `${asunto} (Turno #${numeroDeTurno})`,
-    body: cuerpoFinal
-    });
-
-    Logger.log(`Correo enviado a ${datos.email} por ${datos.metodoPago}.`);
-    */
-    Logger.log(`(Punto 29) Envío de email automático a ${datos.email} DESACTIVADO.`);
-
-  } catch (e) {
-    Logger.log("Error al enviar correo (enviarEmailConfirmacion): " + e.message);
-  }
-}
 
 function subirAptitudManual(dni, fileData) {
   const lock = LockService.getScriptLock();
