@@ -9,7 +9,6 @@
   <?!= HtmlService.createHtmlOutputFromFile('styleHead').getContent(); ?>
 </head>
 
-
 <body class="contrasted-background">
   <div class="container">
     <h1>Formulario de Inscripción</h1>
@@ -155,27 +154,27 @@
           <div class="radio-group">
             <label><strong>¿Es Socio del CLUB?</strong></label>
             <label>
-    <input type="radio" name="esSocio" value="SÍ" class="form-cache" required>
-    <span style="color:red;">Sí</span>
-  </label>
+              <input type="radio" name="esSocio" value="SÍ" class="form-cache" required>
+              <span style="color:red;">Sí</span>
+            </label>
             <label>
-    <input type="radio" name="esSocio" value="NO" class="form-cache">
-    <span style="color:red;">No</span>
-  </label>
+              <input type="radio" name="esSocio" value="NO" class="form-cache">
+              <span style="color:red;">No</span>
+            </label>
           </div>
           <label for="jornada">Seleccione la Jornada:</label>
           <span id="jornada-cupo-msg" style="display: none; color: #dc3545; font-weight: bold; font-size: 0.9em; margin-left: 10px;">(No hay cupo Jornada Extendida)</span>
           <select id="jornada" name="jornada" class="form-cache" required>
-<option value="">-- Por favor, elija una opción --</option>
-<option value="Jornada Normal">Jornada Normal</option>
-<option value="Jornada Normal extendida" id="opcion-jornada-extendida">Jornada Normal Extendida</option>
-</select>
+            <option value="">-- Por favor, elija una opción --</option>
+            <option value="Jornada Normal">Jornada Normal</option>
+            <option value="Jornada Normal extendida" id="opcion-jornada-extendida">Jornada Normal Extendida</option>
+          </select>
 
           <label for="metodoPago">Seleccione el Método de Pago</label>
           <select id="metodoPago" name="metodoPago" class="form-cache" required>
             <option value="">-- Por favor, elija una opción --</option>
             <option value="Pago 1 Cuota Deb/Cred MP(Total)" style.display = "none">Pago 1 Cuota Deb/Cred MP(Total)</option>
-            <option value="Pago en Cuotas">Pago en 3 Cuotas</option> 
+            <option value="Pago en Cuotas">Pago en 3 Cuotas</option>
             <option value="Pago Efectivo (Adm del Club)">Pago Efectivo (Adm del Club)</option>
             <option value="Transferencia">Transferencia(Bancaria,Envío Dinero,etc)</option>
           </select>
@@ -190,8 +189,8 @@
 
           <div id="cuotas-transferencia-info" style="display: none;">
             <p>EL Pago de las cuotas puede ser en EFECTIVO o TRANSFERENCIA. Si es efectivo, acérquese a la Secretaría
-              del Club de Martes a Sábados de 11hs a 18hs.Si es por transferencia realice la transferencia a la
-              siguiente cuente:</p>
+              del Club de Martes a Sábados de 11hs a 18hs.
+              Si es por transferencia realice la transferencia a la siguiente cuenta:</p>
             <p><strong>TITULAR DE LA CUENTA:</strong> <strong>Walter Jonas Marrello</strong></p>
             <p><strong>Alias:</strong> <strong id="alias-transferencia-cuotas">clubhipicomendoza</strong></p>
             <button type="button" id="btn-copiar-alias-cuotas">Copiar Alias</button>
@@ -220,6 +219,19 @@
 
   <script>
     var GLOBAL_APP_URL = "<?= appUrl ?>";
+
+    // --- (INICIO DE CORRECCIÓN) ---
+    // Añadida la nueva variable para el checkbox B24
+    var GLOBAL_PAGO_TOTAL_MP_VISIBLE = <?= (typeof pagoTotalMPVisible !== 'undefined' && pagoTotalMPVisible) ? pagoTotalMPVisible : false ?>;
+
+    // Estas variables son para la lógica de auto-validación de hermanos
+    var GLOBAL_DNI_HERMANO = "<?= (typeof dniHermano !== 'undefined' && dniHermano) ? dniHermano : '' ?>";
+    var GLOBAL_TIPO_HERMANO = "<?= (typeof tipoHermano !== 'undefined' && tipoHermano) ? tipoHermano : '' ?>";
+    var GLOBAL_NOMBRE_HERMANO = "<?= (typeof nombreHermano !== 'undefined' && nombreHermano) ? nombreHermano : '' ?>";
+    var GLOBAL_APELLIDO_HERMANO = "<?= (typeof apellidoHermano !== 'undefined' && apellidoHermano) ? apellidoHermano : '' ?>";
+    var GLOBAL_FECHA_NAC_HERMANO = "<?= (typeof fechaNacHermano !== 'undefined' && fechaNacHermano) ? fechaNacHermano : '' ?>";
+    // --- (FIN DE CORRECCIÓN) ---
+
   </script>
 
   <?!= HtmlService.createHtmlOutputFromFile('js').getContent(); ?>
