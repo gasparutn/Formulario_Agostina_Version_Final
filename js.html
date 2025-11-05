@@ -134,11 +134,61 @@ function handlePagoFailure(error) {
   </div>`;
 }
 
+/**
+ * (MODIFICADO) Handler para éxito de validación de Hermano
+ * Ya no usa 'alert', ahora escribe en el modal.
+ * (MODIFICADO) Tiempo de espera aumentado a 3.5s
+ */
+function handleValidacionHermanoSuccess(response) {
+  // Ocultar loader y reactivar botón del modal
+  document.getElementById('loader-hermano-modal').style.display = 'none';
+  const btnValidar = document.getElementById('btn-modal-validar-hermano');
+  btnValidar.disabled = false;
+  btnValidar.textContent = 'Validar DNI';
+  const statusDiv = document.getElementById('status-hermano-modal');
+
+  if (response.status.startsWith('OK_')) {
+    // Mostrar éxito en el modal
+    statusDiv.innerHTML = `<div class="mensaje exito">${response.message}</div>`;
+    // Agregar la fila
+    addHermanoCampos(response.datos);
+    guardarFormEnCache();
+    
+    // --- (INICIO DE MODIFICACIÓN) ---
+    // Cerrar el modal después de un retraso más largo
+    setTimeout(() => {
+      document.getElementById('hermano-modal-backdrop').style.display = 'none';
+      statusDiv.innerHTML = ''; // Limpiar
+      document.getElementById('hermano-modal-dni').value = ''; // Limpiar
+    }, 3500); // 3.5 segundos
+    // --- (FIN DE MODIFICACIÓN) ---
+
+  } else {
+    // Error lógico (DNI duplicado, etc.)
+    statusDiv.innerHTML = `<div class="mensaje error">${response.message}</div>`;
+  }
+}
+
+/**
+ * (MODIFICADO) Handler para fallo de validación de Hermano
+ * Ya no usa 'alert', ahora escribe en el modal.
+ */
+function handleValidacionHermanoFailure(error) {
+  // Ocultar loader y reactivar botón del modal
+  document.getElementById('loader-hermano-modal').style.display = 'none';
+  const btnValidar = document.getElementById('btn-modal-validar-hermano');
+  btnValidar.disabled = false;
+  btnValidar.textContent = 'Validar DNI';
+  
+  // Mostrar error en el modal
+  const statusDiv = document.getElementById('status-hermano-modal');
+  statusDiv.innerHTML = `<div class="mensaje error">Error de conexión: ${error.message}</div>`;
+}
+
 
 // =========================================================
 // --- ¡¡INICIO DE LA LÓGICA DE VALIDACIÓN!! ---
 // (MODIFICADO) Implementa Petición 2 (Botón Editar)
-// (MODIFICADO POR USUARIO) Lógica de hermanos
 // =========================================================
 
 function handleValidationSuccess(response) {
@@ -1243,24 +1293,48 @@ function addAutorizadoCampos(nombre = '', dni = '') {
   container.appendChild(div);
 }
 
-function addHermanoCampos() {
+/**
+ * (*** ESTA ES LA FUNCIÓN CRÍTICA CORREGIDA ***)
+ * (1) BUG CORREGIDO: Se agregan TODAS las clases (hermano-nombre, hermano-obrasocial, etc.)
+ * a los inputs, independientemente de si son 'readonly' o no.
+ */
+function addHermanoCampos(data = {}) {
   const container = document.getElementById('hermanos-container');
   const div = document.createElement('div');
   div.className = 'fila-dinamica';
   const uniqueId = 'hermano_edad_' + container.children.length;
 
-  // --- (INICIO DE MODIFICACIÓN) ---
-  // Agregados 'hermano-obrasocial' y 'hermano-colegio'
+  // --- (INICIO DE CORRECCIÓN DE BUG) ---
+  const dni = data.dni || '';
+  const nombre = data.nombre || '';
+  const apellido = data.apellido || '';
+  const obraSocial = data.obraSocial || '';
+  const colegio = data.colegio || '';
+  const fechaNac = data.fechaNacimiento || '';
+
+  // Clases base que SIEMPRE deben estar
+  const claseNombre = 'hermano-nombre form-cache';
+  const claseApellido = 'hermano-apellido form-cache';
+  const claseObraSocial = 'hermano-obrasocial form-cache';
+  const claseColegio = 'hermano-colegio form-cache';
+  const claseFechaNac = 'hermano-fechanac form-cache';
+
+  // Determinar si los campos deben ser readonly
+  const propsNombre = nombre ? `readonly class="campo-bloqueado ${claseNombre}"` : `class="${claseNombre}"`;
+  const propsApellido = apellido ? `readonly class="campo-bloqueado ${claseApellido}"` : `class="${claseApellido}"`;
+  const propsFechaNac = fechaNac ? `readonly class="campo-bloqueado ${claseFechaNac}"` : `class="${claseFechaNac}"`;
+
   div.innerHTML = `
   <div class="hermano-campos">
-  <input type="text" class="hermano-nombre form-cache" placeholder="Nombre Hermano/a" required>
-  <input type="text" class="hermano-apellido form-cache" placeholder="Apellido Hermano/a" required>
+  <input type="text" ${propsNombre} placeholder="Nombre Hermano/a" value="${nombre}" required>
+  <input type="text" ${propsApellido} placeholder="Apellido Hermano/a" value="${apellido}" required>
 
-  <input type="text" class="hermano-obrasocial form-cache" placeholder="Obra Social Hermano/a" required>
-  <input type="text" class="hermano-colegio form-cache" placeholder="Colegio/Jardín Hermano/a" required>
+  <input type="text" class="${claseObraSocial}" placeholder="Obra Social Hermano/a" value="${obraSocial}" required>
+  <input type="text" class="${claseColegio}" placeholder="Colegio/Jardín Hermano/a" value="${colegio}" required>
 
-  <input type="tel" class="hermano-dni form-cache" placeholder="DNI Hermano/a (8 dígitos)" maxlength="8" pattern="[0-9]{8}" inputmode="numeric" required title="El DNI debe tener exactamente 8 dígitos numéricos.">
-  <input type="date" class="hermano-fechanac form-cache" required oninput="calcularYMostrarEdad(this.value, '${uniqueId}')" min="2010-01-01" max="2023-12-31">
+  <input type="tel" readonly class="campo-bloqueado form-cache hermano-dni" placeholder="DNI Hermano/a (8 dígitos)" value="${dni}" maxlength="8" pattern="[0-9]{8}" inputmode="numeric" required title="El DNI debe tener exactamente 8 dígitos numéricos.">
+  
+  <input type="date" ${propsFechaNac} value="${fechaNac}" required oninput="calcularYMostrarEdad(this.value, '${uniqueId}')" min="2010-01-01" max="2023-12-31">
 
   <div class="hermano-dni-error" style="color: red; font-size: 0.85em; grid-column: 1 / 2; margin-top: -10px; min-height: 1.2em;"></div>
   <div class="hermano-fecha-error" style="color: red; font-size: 0.85em; grid-column: 2 / 3; margin-top: -10px; min-height: 1.2em;"></div>
@@ -1269,8 +1343,13 @@ function addHermanoCampos() {
   </div>
   <button type="button" class="btn-remover" onclick="removerFila(this)">X</button>
   `;
-  // --- (FIN DE MODIFICACIÓN) ---
+  // --- (FIN DE CORRECCIÓN DE BUG) ---
   container.appendChild(div);
+
+  // Calcular edad si la fecha vino
+  if (fechaNac) {
+    calcularYMostrarEdad(fechaNac, document.getElementById(uniqueId));
+  }
 }
 
 function guardarFormEnCache() {
@@ -1283,17 +1362,25 @@ function guardarFormEnCache() {
       if (el.disabled) {
         return;
       }
+      
+      // (MODIFICADO) Esta lógica es más simple: si es readonly pero NO es del formulario
+      // principal (como nombre, dni, etc. de pre-venta), igual lo guardamos.
+      if (el.readOnly && !el.id) {
+         // Esto ahora captura correctamente los campos de hermano readonly
+         data[key] = el.value;
+      }
 
-      if (el.readOnly) {
+      if (el.readOnly && el.id) { // Captura los campos de pre-venta (nombre, dni, etc.)
         data[key] = el.value;
         return;
       }
+
 
       if (el.type === 'radio') {
         if (el.checked) {
           data[el.name] = el.value;
         }
-      } else {
+      } else if (!el.readOnly) { // Solo guarda los no-readonly (evita duplicados)
         data[key] = el.value;
       }
     });
@@ -1307,29 +1394,27 @@ function guardarFormEnCache() {
       }
     }
 
-    // --- (INICIO DE MODIFICACIÓN) ---
-    // Agregados 'obrasSocialesHermano' y 'colegiosHermano'
+    // (MODIFICADO) Ahora que los selectores están BIEN, esto es más seguro.
     data.hermanos = [];
     const nombresHermano = document.querySelectorAll('.hermano-nombre');
     const apellidosHermano = document.querySelectorAll('.hermano-apellido');
-    const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial'); // NUEVO
-    const colegiosHermano = document.querySelectorAll('.hermano-colegio'); // NUEVO
+    const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial');
+    const colegiosHermano = document.querySelectorAll('.hermano-colegio');
     const dnisHermano = document.querySelectorAll('.hermano-dni');
     const fechasNacHermano = document.querySelectorAll('.hermano-fechanac');
     
+    // Usamos dnisHermano.length como la fuente de verdad.
     for (let i = 0; i < dnisHermano.length; i++) {
-      if (nombresHermano[i].value || dnisHermano[i].value) { 
+        // Si el selector fallara (que ya no debería), esto previene el error.
         data.hermanos.push({
-          n: nombresHermano[i].value,
-          a: apellidosHermano[i].value,
-          os: obrasSocialesHermano[i].value, // NUEVO
-          c: colegiosHermano[i].value,     // NUEVO
-          d: dnisHermano[i].value,
-          f: fechasNacHermano[i].value
+          n: (nombresHermano[i] ? nombresHermano[i].value : ''),
+          a: (apellidosHermano[i] ? apellidosHermano[i].value : ''),
+          os: (obrasSocialesHermano[i] ? obrasSocialesHermano[i].value : ''),
+          c: (colegiosHermano[i] ? colegiosHermano[i].value : ''),
+          d: (dnisHermano[i] ? dnisHermano[i].value : ''),
+          f: (fechasNacHermano[i] ? fechasNacHermano[i].value : '')
         });
-      }
     }
-    // --- (FIN DE MODIFICACIÓN) ---
 
     localStorage.setItem(CACHE_KEY, JSON.stringify(data));
 
@@ -1369,25 +1454,16 @@ function cargarFormDesdeCache() {
       hermContainer.innerHTML = '';
       
       // --- (INICIO DE MODIFICACIÓN) ---
-      // Agregados '.hermano-obrasocial' y '.hermano-colegio'
+      // Se llama a addHermanoCampos con los datos cacheados
       data.hermanos.forEach(herm => {
-        addHermanoCampos(); // (Corrección: debe ser addHermanoCampos)
-        hermContainer.querySelector('.hermano-nombre:last-of-type').value = herm.n || '';
-        hermContainer.querySelector('.hermano-apellido:last-of-type').value = herm.a || '';
-        hermContainer.querySelector('.hermano-obrasocial:last-of-type').value = herm.os || ''; // NUEVO
-        hermContainer.querySelector('.hermano-colegio:last-of-type').value = herm.c || '';     // NUEVO
-        hermContainer.querySelector('.hermano-dni:last-of-type').value = herm.d || '';
-        const fechaInput = hermContainer.querySelector('.hermano-fechanac:last-of-type');
-        fechaInput.value = herm.f || '';
-        
-        const onInputAttr = fechaInput.getAttribute('oninput');
-        if (onInputAttr) {
-          const edadDivIdMatch = onInputAttr.match(/'(hermano_edad_\d+)'/);
-          if (edadDivIdMatch && edadDivIdMatch[1]) {
-            const edadDivId = edadDivIdMatch[1];
-            calcularYMostrarEdad(herm.f, document.getElementById(edadDivId));
-          }
-        }
+        addHermanoCampos({
+          dni: herm.d || '',
+          nombre: herm.n || '',
+          apellido: herm.a || '',
+          obraSocial: herm.os || '',
+          colegio: herm.c || '',
+          fechaNacimiento: herm.f || ''
+        });
       });
       // --- (FIN DE MODIFICACIÓN) ---
     }

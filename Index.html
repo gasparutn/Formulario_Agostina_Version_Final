@@ -103,6 +103,21 @@
 
         <div class="form-section" id="seccion-hermanos">
           <h3>(Opcional) Agregar Hermanos/as</h3>
+          
+          <div id="hermano-modal-backdrop" style="display: none;">
+            <div id="hermano-modal-content">
+              <h4>Validar Hermano/a</h4>
+              <p>Ingrese el DNI del hermano/a para verificar si ya existe en nuestros registros.</p>
+              <label for="hermano-modal-dni">DNI del Hermano/a (8 dígitos)</label>
+              <input type="tel" id="hermano-modal-dni" pattern="[0-9]{8}" maxlength="8" inputmode="numeric">
+              <div class="loader" id="loader-hermano-modal" style="display: none;"><div class="spinner"></div><p>Validando...</p></div>
+              <div class="status" id="status-hermano-modal"></div>
+              <div class="modal-botones">
+                <button type="button" id="btn-modal-validar-hermano" class="btn-guardar">Validar DNI</button>
+                <button type="button" id="btn-modal-cancelar-hermano" class="btn-cancelar">Cancelar</button>
+              </div>
+            </div>
+          </div>
           <p>Asegure el cupo de sus otros hijos. Se creará un pre-registro para ellos.</p>
           <div id="hermanos-container">
           </div>

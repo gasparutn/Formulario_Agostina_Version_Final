@@ -1,6 +1,9 @@
 <script>
 // =========================================================
 // (NUEVO ARCHIVO) LISTENERS DE EVENTOS
+// (MODIFICADO) Lógica de validación de hermanos
+// (MODIFICADO) Corrección bug submit
+// (MODIFICADO) Corrección bug cuelgue en redirección
 // =========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,18 +81,77 @@ addAutorizadoCampos();
 guardarFormEnCache();
 });
 
-// (Punto 5) Listener Hermano
+// --- (INICIO DE MODIFICACIÓN) ---
+// (MODIFICADO) Listener Hermano ahora abre el MODAL
 document.getElementById('btn-add-hermano').addEventListener('click', function() {
-addHermanoCampos();
-guardarFormEnCache();
+  const dniPrincipal = document.getElementById('dni').value;
+  if (!dniPrincipal) {
+    alert('Error: El DNI del inscripto principal debe estar cargado.');
+    return;
+  }
+  // Limpiar campos y mensajes anteriores
+  document.getElementById('hermano-modal-dni').value = '';
+  document.getElementById('status-hermano-modal').innerHTML = '';
+  document.getElementById('loader-hermano-modal').style.display = 'none';
+  // Mostrar el modal
+  document.getElementById('hermano-modal-backdrop').style.display = 'flex';
+  document.getElementById('hermano-modal-dni').focus();
 });
+
+// (NUEVO) Listener para CERRAR el modal de hermano
+document.getElementById('btn-modal-cancelar-hermano').addEventListener('click', function() {
+  document.getElementById('hermano-modal-backdrop').style.display = 'none';
+});
+
+// (NUEVO) Listener para VALIDAR DNI desde el modal
+document.getElementById('btn-modal-validar-hermano').addEventListener('click', function() {
+  const btnValidar = this;
+  const dniPrincipal = document.getElementById('dni').value; // Ya sabemos que existe
+  const dniInput = document.getElementById('hermano-modal-dni');
+  const dniHermano = dniInput.value;
+  const statusDiv = document.getElementById('status-hermano-modal');
+  const loader = document.getElementById('loader-hermano-modal');
+
+  statusDiv.innerHTML = ''; // Limpiar errores previos
+
+  const dniHermanoLimpio = dniHermano.replace(/[.\s-]/g, '').trim();
+
+  if (!/^[0-9]{8}$/.test(dniHermanoLimpio)) {
+    statusDiv.innerHTML = `<div class="mensaje error">Error: El DNI debe tener 8 dígitos numéricos.</div>`;
+    return;
+  }
+
+  if (dniHermanoLimpio === dniPrincipal) {
+    statusDiv.innerHTML = `<div class="mensaje error">Error: El DNI del hermano/a no puede ser igual al del inscripto principal.</div>`;
+    return;
+  }
+
+  // Validar duplicados en el cliente (contra DNIs ya agregados en el formulario)
+  const dnisYaAgregados = document.querySelectorAll('.hermano-dni');
+  for (const inputDNI of dnisYaAgregados) {
+    if (inputDNI.value === dniHermanoLimpio) {
+      statusDiv.innerHTML = `<div class="mensaje error">Error: El DNI ${dniHermanoLimpio} ya fue agregado a la lista.</div>`;
+      return;
+    }
+  }
+
+  // Deshabilitar botón y mostrar carga
+  btnValidar.disabled = true;
+  btnValidar.textContent = 'Validando...';
+  loader.style.display = 'block';
+
+  // Llamar a la nueva función del servidor
+  google.script.run
+    .withSuccessHandler(handleValidacionHermanoSuccess)
+    .withFailureHandler(handleValidacionHermanoFailure)
+    .validarDNIHermano(dniHermanoLimpio, dniPrincipal);
+});
+// --- (FIN DE MODIFICACIÓN) ---
+
 
 // =========================================================
 // (CORRECCIÓN 8 - LISTENER DE SUBMIT)
-// (ACTUALIZADO - PUNTO 35 y Anti-Duplicados)
-// (NUEVO - REQ 2) Modificada función 'validationFail'
-// (ACTUALIZADO - PUNTO 38) Validación de Fechas
-// (MODIFICADO POR USUARIO) Agregados campos de hermanos
+// (*** CORREGIDO EL BUG DEL SUBMIT ***)
 // =========================================================
 document.getElementById('registroForm').addEventListener('submit', function(e) {
 e.preventDefault();
@@ -99,17 +161,12 @@ const loader = document.getElementById('loader-registro');
 const statusDiv = document.getElementById('status-registro');
 
 // --- (MODIFICADO) Función helper para manejar fallos de validación ---
-// Los errores de DNI de hermano ahora se manejan inline.
 function validationFail(message, elementToFocus) {
-
-// Mostrar siempre el error en el div de estado general
 statusDiv.innerHTML = `<div class="mensaje error">${message}</div>`;
-
 if (elementToFocus) {
 elementToFocus.focus();
 elementToFocus.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-
 submitButton.disabled = false;
 loader.style.display = 'none';
 }
@@ -131,41 +188,29 @@ let autorizadosValidos = 0;
 let primerInputVacio = null;
 
 if (nombresAut.length === 0) {
-// Si el contenedor está vacío
 return validationFail('Error: Debe agregar al menos una persona autorizada.', document.getElementById('btn-add-autorizado'));
 }
-
-// --- (INICIO MODIFICACIÓN PUNTO 35) ---
 for (let i = 0; i < nombresAut.length; i++) {
 const nombre = nombresAut[i].value.trim();
 const dni = dnisAut[i] ? dnisAut[i].value.trim() : '';
 
 if (nombre && dni) {
-// Si ambos campos están llenos, validar el DNI
 if (!/^[0-9]{8}$/.test(dni)) {
 return validationFail('Error: El DNI de la persona autorizada (' + nombre + ') debe tener exactamente 8 dígitos numéricos.', dnisAut[i]);
 }
 autorizadosValidos++;
 } else if ((!nombre && dni)) {
-// Si no hay nombre pero sí DNI, validar DNI
 if (!/^[0-9]{8}$/.test(dni)) {
 return validationFail('Error: El DNI de la persona autorizada debe tener 8 dígitos, pero el campo de Nombre está vacío.', dnisAut[i]);
 }
-// Si el DNI es válido pero falta el nombre
 return validationFail('Error: Por favor complete el Nombre de la persona autorizada.', nombresAut[i]);
-
 } else if (nombre && !dni) {
-// Si hay nombre pero no DNI
 return validationFail('Error: Por favor complete el DNI de la persona autorizada (' + nombre + ') (8 dígitos).', dnisAut[i]);
 }
-
 if (!nombre && !primerInputVacio) {
 primerInputVacio = nombresAut[i];
 }
 }
-// --- (FIN MODIFICACIÓN PUNTO 35) ---
-
-
 if (autorizadosValidos === 0) {
 return validationFail('Error: Debe ingresar al menos una persona autorizada (Nombre y DNI).', primerInputVacio);
 }
@@ -188,7 +233,6 @@ const radiosRequeridos = [
 { name: 'esAlergico', label: '¿Es alérgico/a a algo?' },
 { name: 'esSocio', label: '¿Es Socio del CLUB?' }
 ];
-
 for (const radio of radiosRequeridos) {
 const checked = document.querySelector(`input[name="${radio.name}"]:checked`);
 if (!checked) {
@@ -201,10 +245,9 @@ return validationFail(`Error: Debe seleccionar una opción para "${friendlyName}
 // --- 3b. (MODIFICADO - PUNTO 38) Validación Edad ---
 const fechaNacInput = document.getElementById('fechaNacimiento');
 const fechaNacPrincipal = fechaNacInput.value;
-if (!fechaNacPrincipal) { // Debería ser atrapado por 'required', pero verificamos
+if (!fechaNacPrincipal) { 
 return validationFail('Error: Debe ingresar una Fecha de Nacimiento.', fechaNacInput);
 }
-// (RANGO ACTUALIZADO)
 if (fechaNacPrincipal < "2010-01-01" || fechaNacPrincipal > "2023-12-31") {
 return validationFail('Error: La fecha de nacimiento debe estar entre 01/01/2010 y 31/12/2023.', fechaNacInput);
 }
@@ -216,28 +259,21 @@ loader.querySelector('p').textContent = 'Recolectando datos...';
 const formDataObject = {};
 document.querySelectorAll('.form-cache').forEach(el => {
 const key = el.id || el.name;
-
 if (!key) return;
-
 if (el.disabled) {
-// Recolectar manually campos deshabilitados (como 'jornada' en Pre-Venta)
 if (el.id === 'jornada') {
 formDataObject['jornada'] = el.value;
 }
 return;
 }
-
 if (el.type === 'radio') {
 if (el.checked) {
 formDataObject[key] = el.value;
 }
 } else {
-// (Punto 28) 'cantidadCuotas' ya no es form-cache
-formDataObject[key] = el.value; // Recolecta campos de texto (incluyendo readOnly de Pre-Venta)
+formDataObject[key] = el.value; 
 }
 });
-
-// (Punto 28) Forzar 3 cuotas si se seleccionó esa opción
 if (formDataObject['metodoPago'] === 'Pago en Cuotas') {
 formDataObject['cantidadCuotas'] = "3";
 }
@@ -247,7 +283,6 @@ formDataObject.tipoInscripto = document.getElementById('tipoInscripto').value;
 formDataObject.esHermanoCompletando = (document.getElementById('esHermanoCompletando').value === "true");
 formDataObject.urlCertificadoAptitud = document.getElementById('urlCertificadoAptitud').value;
 formDataObject.urlFotoCarnet = document.getElementById('urlFotoCarnet').value;
-
 formDataObject.personasAutorizadas = Array.from(nombresAut)
 .map((el, i) => (el.value && dnisAut[i] && dnisAut[i].value) ? `${el.value.trim()} (DNI: ${dnisAut[i].value.trim()})` : null)
 .filter(Boolean)
@@ -257,104 +292,51 @@ formDataObject.personasAutorizadas = Array.from(nombresAut)
 formDataObject.hermanos = [];
 const nombresHermano = document.querySelectorAll('.hermano-nombre');
 const apellidosHermano = document.querySelectorAll('.hermano-apellido');
-// --- (INICIO DE MODIFICACIÓN) ---
-const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial'); // NUEVO
-const colegiosHermano = document.querySelectorAll('.hermano-colegio'); // NUEVO
-// --- (FIN DE MODIFICACIÓN) ---
-const dnisHermanoInputs = document.querySelectorAll('.hermano-dni'); // (Cambiado para .focus())
-const fechasNacHermano = document.querySelectorAll('.hermano-fechanac');
+const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial'); 
+const colegiosHermano = document.querySelectorAll('.hermano-colegio'); 
+const dnisHermanoInputs = document.querySelectorAll('.hermano-dni'); 
+const fechasNacHermano = document.querySelectorAll('.hermano-fechanac'); // (*** AHORA SÍ FUNCIONA ***)
 
-// --- (INICIO VALIDACIÓN ANTI-DUPLICADOS CLIENT-SIDE) ---
-const dnisEnRegistro = new Set();
-const principalDNI = document.getElementById('dni').value;
-dnisEnRegistro.add(principalDNI);
-
-// *** INICIO DE LA MODIFICACIÓN CLAVE ***
-let hayErrorDniHermano = false; // Flag para detener el submit
-
-// 1. Limpiar todos los errores de DNI de hermanos anteriores
+// --- (VALIDACIÓN HERMANOS MODIFICADA) ---
+// Limpiar errores previos
 document.querySelectorAll('.hermano-dni-error').forEach(div => div.textContent = '');
 
-// --- (MODIFICACIÓN PUNTO 35 y Anti-Duplicados) ---
 for (let i = 0; i < dnisHermanoInputs.length; i++) {
-const nombre = nombresHermano[i].value.trim();
-const apellido = apellidosHermano[i].value.trim();
-// --- (INICIO DE MODIFICACIÓN) ---
-const obraSocial = obrasSocialesHermano[i].value.trim(); // NUEVO
-const colegio = colegiosHermano[i].value.trim();         // NUEVO
-// --- (FIN DE MODIFICACIÓN) ---
-const dniInput = dnisHermanoInputs[i]; // Input element
-const dni = dniInput.value.trim();
-const fechaNacInputHermano = fechasNacHermano[i]; // Input element
-const fechaNac = fechaNacInputHermano.value;
+  
+  // (*** 1. ESTA ES LA LÍNEA QUE CORRIGE EL BUG ***)
+  // Ahora todos los selectores deberían encontrar los elementos
+  const nombre = nombresHermano[i].value.trim();
+  const apellido = apellidosHermano[i].value.trim();
+  const obraSocial = obrasSocialesHermano[i].value.trim();
+  const colegio = colegiosHermano[i].value.trim();
+  const dniInput = dnisHermanoInputs[i]; 
+  const dni = dniInput.value.trim(); 
+  const fechaNacInputHermano = fechasNacHermano[i]; // Esto ya no es undefined
+  
+  // (*** ESTA LÍNEA AHORA ES SEGURA ***)
+  const fechaNac = fechaNacInputHermano.value;
+  
+  if (!nombre) return validationFail('Error: Debe completar el Nombre del hermano/a (DNI ' + dni + ').', nombresHermano[i]);
+  if (!apellido) return validationFail('Error: Debe completar el Apellido del hermano/a (DNI ' + dni + ').', apellidosHermano[i]);
+  if (!obraSocial) return validationFail('Error: Debe completar la Obra Social del hermano/a (DNI ' + dni + ').', obrasSocialesHermano[i]);
+  if (!colegio) return validationFail('Error: Debe completar el Colegio/Jardín del hermano/a (DNI ' + dni + ').', colegiosHermano[i]);
+  if (!fechaNac) return validationFail('Error: Debe completar la Fecha de Nacimiento del hermano/a (DNI ' + dni + ').', fechaNacInputHermano);
 
+  if (fechaNac < "2010-01-01" || fechaNac > "2023-12-31") {
+    return validationFail('Error: La fecha de nacimiento del hermano/a (' + nombre + ') debe estar entre 01/01/2010 y 31/12/2023.', fechaNacInputHermano);
+  }
 
-// Encontrar el div de error específico para este hermano 
-const errorDiv = dniInput.closest('.hermano-campos').querySelector('.hermano-dni-error');
-
-// --- (INICIO DE MODIFICACIÓN) ---
-// Validar solo si hay algún dato, para no forzar hermanos opcionales
-if (nombre || apellido || dni || fechaNac || obraSocial || colegio) {
-// --- (FIN DE MODIFICACIÓN) ---
-
-// Validar DNI primero
-if (!/^[0-9]{8}$/.test(dni)) {
-// Error inline:
-if (errorDiv) errorDiv.textContent = 'El DNI debe tener 8 dígitos.';
-hayErrorDniHermano = true;
-// (No usamos 'return', seguimos validando)
-
-// (INICIO VALIDACIÓN ANTI-DUPLICADOS)
-} else if (dnisEnRegistro.has(dni)) {
-// *** ESTA ES LA LÓGICA QUE PEDISTE ***
-// (Muestra el error de la imagen en el div específico)
-if (errorDiv) errorDiv.textContent = 'Error: El DNI ' + dni + ' está duplicado. Un hermano no puede tener el mismo DNI que el inscripto principal u otro hermano.';
-hayErrorDniHermano = true;
-// (No usamos 'return', seguimos validando)
-
-} else {
-dnisEnRegistro.add(dni); // DNI válido y único, agregarlo al Set
+  formDataObject.hermanos.push({
+    nombre: nombre,
+    apellido: apellido,
+    obraSocial: obraSocial,
+    colegio: colegio,
+    dni: dni,
+    fechaNac: fechaNac
+  });
 }
-// (FIN VALIDACIÓN ANTI-DUPLICADOS)
+// --- (FIN VALIDACIÓN HERMANOS) ---
 
-// --- (INICIO DE MODIFICACIÓN) ---
-// Validar que el resto de campos estén llenos si se empezó a llenar
-// (Estos errores SÍ detienen el submit porque son más fáciles de arreglar)
-if (!nombre) return validationFail('Error: Debe completar el Nombre del hermano/a.', nombresHermano[i]);
-if (!apellido) return validationFail('Error: Debe completar el Apellido del hermano/a.', apellidosHermano[i]);
-if (!obraSocial) return validationFail('Error: Debe completar la Obra Social del hermano/a.', obrasSocialesHermano[i]); // NUEVO
-if (!colegio) return validationFail('Error: Debe completar el Colegio/Jardín del hermano/a.', colegiosHermano[i]);     // NUEVO
-if (!fechaNac) return validationFail('Error: Debe completar la Fecha de Nacimiento del hermano/a.', fechaNacInputHermano);
-// --- (FIN DE MODIFICACIÓN) ---
-
-// (MODIFICADO - PUNTO 38) Validación Edad Hermano
-if (fechaNac < "2010-01-01" || fechaNac > "2023-12-31") {
-return validationFail('Error: La fecha de nacimiento del hermano/a (' + nombre + ') debe estar entre 01/01/2010 y 31/12/2023.', fechaNacInputHermano);
-}
-
-
-// Si todo es válido, agregarlo
-// --- (INICIO DE MODIFICACIÓN) ---
-formDataObject.hermanos.push({
-nombre: nombre,
-apellido: apellido,
-obraSocial: obraSocial, // NUEVO
-colegio: colegio,     // NUEVO
-dni: dni,
-fechaNac: fechaNac
-});
-// --- (FIN DE MODIFICACIÓN) ---
-}
-}
-// --- (FIN MODIFICACIÓN PUNTO 35 y Anti-Duplicados) ---
-
-// *** (NUEVA MODIFICACIÓN) ***
-// Comprobar el flag después del loop. Si hay errores de DNI, detener el submit.
-if (hayErrorDniHermano) {
-// Llama a validationFail con un mensaje genérico para el 'statusDiv'
-return validationFail('Error: Revise los DNI de los hermanos. Se encontraron duplicados o inválidos.', null);
-}
-// *** FIN DE LA MODIFICACIÓN CLAVE ***
 
 // --- 6. Validación de Archivos (Foto y Aptitud) ---
 const urlFoto = formDataObject.urlFotoCarnet;
@@ -364,12 +346,10 @@ let msg = '<strong>Error:</strong> Debe seleccionar y subir una Foto Carnet (Req
 if (fotoFile) {
 msg = '<strong>Error:</strong> La Foto Carnet está seleccionada pero aún no se ha subido.<br>Espere a que la subida finalice (✅) o vuelva a seleccionarla.';
 }
-// (MODIFICADO - REQ 2) Se pasa el mensaje al 'statusDiv'
 return validationFail(msg, form.fotoCarnet);
 }
 if (form.certificadoAptitud.files[0] && !formDataObject.urlCertificadoAptitud) {
 let msg = '<strong>Error:</strong> El Certificado de Aptitud se está subiendo o falló.<br>Por favor, espere o vuelva a seleccionarlo.';
-// (MODIFICADO - REQ 2) Se pasa el mensaje al 'statusDiv'
 return validationFail(msg, form.certificadoAptitud);
 }
 
@@ -377,8 +357,8 @@ return validationFail(msg, form.certificadoAptitud);
 loader.querySelector('p').textContent = 'Procesando registro... Por favor, espere.';
 
 google.script.run
-.withSuccessHandler(handlePaso1Success) // <--- CORREGIDO (Llama al handler de Paso 1)
-.withFailureHandler(handleRegistroFailure) // <--- CORREGIDO (Llama al handler de fallo de Paso 1)
+.withSuccessHandler(handlePaso1Success) 
+.withFailureHandler(handleRegistroFailure) 
 .paso1_registrarRegistro(formDataObject);
 
 } catch (err) {
@@ -406,29 +386,44 @@ document.getElementById('registroForm').addEventListener('change', guardarFormEn
 const autoDNI = localStorage.getItem('autoValidateDNI');
 const autoType = localStorage.getItem('autoValidateType');
 
+// --- (INICIO DE MODIFICACIÓN) ---
+// Esta es la corrección para el "cuelgue" de la página
 if (autoDNI && autoType) {
-localStorage.removeItem('autoValidateDNI');
-localStorage.removeItem('autoValidateType');
+  localStorage.removeItem('autoValidateDNI');
+  localStorage.removeItem('autoValidateType');
 
-document.getElementById('dni-input').value = autoDNI;
-document.getElementById('tipoInscripto').value = autoType;
+  document.getElementById('dni-input').value = autoDNI;
+  document.getElementById('tipoInscripto').value = autoType;
+  
+  // Mostrar el loader INMEDIATAMENTE para que el usuario sepa que está funcionando
+  document.getElementById('btn-validar').disabled = true; // Deshabilitar para evitar clic manual
+  document.getElementById('loader-validacion').style.display = 'block';
+  document.getElementById('status-validacion').innerHTML = '<div class="mensaje aviso">Validando DNI del hermano/a...</div>';
 
-setTimeout(() => {
-document.getElementById('btn-validar').click();
-}, 100);
+  // Aumentar el tiempo de espera para asegurar que la página esté 100% lista
+  setTimeout(() => { 
+    // *** ESTA ES LA CORRECCIÓN CLAVE ***
+    // No hagas clic. Llama a la función de validación directamente.
+    google.script.run
+      .withSuccessHandler(handleValidationSuccess)
+      .withFailureHandler(handleValidationFailure)
+      .validarAcceso(autoDNI, autoType);
+  }, 1000); // 1 segundo (antes 100ms)
+
+} else {
+  // Solo cargar el caché y los autorizados si NO es una validación automática
+  if (document.querySelectorAll('.autorizado-nombre').length === 0) {
+    addAutorizadoCampos();
+  }
+  cargarFormDesdeCache();
+  toggleEspecifique('practicaDeporte', 'especifiqueDeporte');
+  toggleEspecifique('tieneEnfermedad', 'especifiqueEnfermedad');
+  toggleEspecifique('esAlergico', 'especifiqueAlergia');
+  toggleTransferenciaInfo();
+  toggleCuotasInfo();
 }
+// --- (FIN DE MODIFICACIÓN) ---
 
-
-if (document.querySelectorAll('.autorizado-nombre').length === 0) {
-addAutorizadoCampos();
-}
-
-cargarFormDesdeCache();
-toggleEspecifique('practicaDeporte', 'especifiqueDeporte');
-toggleEspecifique('tieneEnfermedad', 'especifiqueEnfermedad');
-toggleEspecifique('esAlergico', 'especifiqueAlergia');
-toggleTransferenciaInfo();
-toggleCuotasInfo();
 
 }); // <-- FIN DEL DOMContentLoaded
 </script>

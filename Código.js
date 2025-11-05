@@ -1077,3 +1077,105 @@ function subirArchivoIndividual(fileData, dni, tipoArchivo) {
     return { status: 'ERROR', message: 'Error del servidor al subir: ' + e.message };
   }
 }
+
+function validarDNIHermano(dniHermano, dniPrincipal) {
+  try {
+    const dniLimpio = limpiarDNI(dniHermano);
+    const dniPrincipalLimpio = limpiarDNI(dniPrincipal);
+
+    if (!/^[0-9]{8}$/.test(dniLimpio)) {
+      return { status: 'ERROR', message: 'El DNI del hermano/a debe tener 8 dígitos.' };
+    }
+    if (dniLimpio === dniPrincipalLimpio) {
+      return { status: 'ERROR', message: 'El DNI del hermano/a no puede ser igual al del inscripto principal.' };
+    }
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    // 1. Chequear duplicados en Registros
+    const hojaRegistro = ss.getSheetByName(NOMBRE_HOJA_REGISTRO);
+    if (hojaRegistro && hojaRegistro.getLastRow() > 1) {
+      const rangoDniRegistro = hojaRegistro.getRange(2, COL_DNI_INSCRIPTO, hojaRegistro.getLastRow() - 1, 1);
+      const celdaRegistro = rangoDniRegistro.createTextFinder(dniLimpio).matchEntireCell(true).findNext();
+      if (celdaRegistro) {
+        return { status: 'ERROR', message: `El DNI ${dniLimpio} ya se encuentra registrado en la base de datos (Fila ${celdaRegistro.getRow()}). No se puede agregar como hermano.` };
+      }
+    }
+
+    // 2. Chequear en PRE-VENTA
+    const hojaPreventa = ss.getSheetByName(NOMBRE_HOJA_PREVENTA);
+    if (hojaPreventa && hojaPreventa.getLastRow() > 1) {
+      const rangoDniPreventa = hojaPreventa.getRange(2, COL_PREVENTA_DNI, hojaPreventa.getLastRow() - 1, 1);
+      const celdaEncontradaPreventa = rangoDniPreventa.createTextFinder(dniLimpio).matchEntireCell(true).findNext(); // <-- Variable única
+      
+      if (celdaEncontradaPreventa) { // <-- Usar variable única
+        const fila = hojaPreventa.getRange(celdaEncontradaPreventa.getRow(), 1, 1, hojaPreventa.getLastColumn()).getValues()[0];
+        const fechaNacimientoRaw = fila[COL_PREVENTA_FECHA_NAC - 1];
+        const fechaNacimientoStr = (fechaNacimientoRaw instanceof Date) ? Utilities.formatDate(fechaNacimientoRaw, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd') : '';
+        
+        return {
+          status: 'OK_PREVENTA',
+          message: '¡DNI de Pre-Venta encontrado! Se autocompletarán los datos del hermano/a.',
+          datos: {
+            dni: dniLimpio,
+            nombre: fila[COL_PREVENTA_NOMBRE - 1],
+            apellido: fila[COL_PREVENTA_APELLIDO - 1],
+            fechaNacimiento: fechaNacimientoStr,
+            obraSocial: '', // PRE-VENTA no tiene estos datos, se deja vacío
+            colegio: ''     // PRE-VENTA no tiene estos datos, se deja vacío
+          }
+        };
+      }
+    }
+
+    // 3. Chequear en Base de Datos (Anteriores)
+    const hojaBusqueda = ss.getSheetByName(NOMBRE_HOJA_BUSQUEDA);
+    if (hojaBusqueda && hojaBusqueda.getLastRow() > 1) {
+      const rangoDNI = hojaBusqueda.getRange(2, COL_DNI_BUSQUEDA, hojaBusqueda.getLastRow() - 1, 1);
+      
+      // --- (INICIO DE CORRECCIÓN) ---
+      // Se usa una variable 'celdaEncontrada_BD' distinta a la de Pre-Venta
+      const celdaEncontrada_BD = rangoDNI.createTextFinder(dniLimpio).matchEntireCell(true).findNext();
+      
+      if (celdaEncontrada_BD) { // <-- Se comprueba la variable correcta
+        // Se lee la fila correcta usando la celda encontrada
+        const fila = hojaBusqueda.getRange(celdaEncontrada_BD.getRow(), COL_HABILITADO_BUSQUEDA, 1, 10).getValues()[0]; 
+        // --- (FIN DE CORRECCIÓN) ---
+
+        const fechaNacimientoRaw = fila[COL_FECHA_NACIMIENTO_BUSQUEDA - COL_HABILITADO_BUSQUEDA]; // Col E (idx 3)
+        const fechaNacimientoStr = (fechaNacimientoRaw instanceof Date) ? Utilities.formatDate(fechaNacimientoRaw, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd') : '';
+        
+        return {
+          status: 'OK_ANTERIOR',
+          message: '¡DNI de Inscripto Anterior encontrado! Se autocompletarán los datos del hermano/a.',
+          datos: {
+            dni: dniLimpio,
+            nombre: fila[COL_NOMBRE_BUSQUEDA - COL_HABILITADO_BUSQUEDA], // Col C (idx 1)
+            apellido: fila[COL_APELLIDO_BUSQUEDA - COL_HABILITADO_BUSQUEDA], // Col D (idx 2)
+            fechaNacimiento: fechaNacimientoStr,
+            obraSocial: String(fila[COL_OBRASOCIAL_BUSQUEDA - COL_HABILITADO_BUSQUEDA] || '').trim(), // Col H (idx 6)
+            colegio: String(fila[COL_COLEGIO_BUSQUEDA - COL_HABILITADO_BUSQUEDA] || '').trim()  // Col I (idx 7)
+          }
+        };
+      }
+    }
+
+    // 4. No encontrado (Nuevo)
+    return {
+      status: 'OK_NUEVO',
+      message: 'DNI no encontrado en Pre-Venta ni en registros Anteriores. Por favor, complete todos los datos del hermano/a.',
+      datos: {
+        dni: dniLimpio,
+        nombre: '',
+        apellido: '',
+        fechaNacimiento: '',
+        obraSocial: '',
+        colegio: ''
+      }
+    };
+
+  } catch (e) {
+    Logger.log("Error en validarDNIHermano: " + e.message);
+    return { status: 'ERROR', message: 'Error del servidor: ' + e.message };
+  }
+}
