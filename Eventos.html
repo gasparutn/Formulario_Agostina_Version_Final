@@ -1,13 +1,11 @@
 <script>
-  // =========================================================
+// =========================================================
 // (NUEVO ARCHIVO) LISTENERS DE EVENTOS
 // =========================================================
 
 document.addEventListener('DOMContentLoaded', () => {
 
 // --- INICIO DE LISTENERS MOVIDOS ---
-
-
 
 document.getElementById('btn-validar').addEventListener('click', function() {
 const dni = document.getElementById('dni-input').value;
@@ -382,6 +380,36 @@ window.top.location.href = APP_URL;
 });
 
 document.getElementById('registroForm').addEventListener('change', guardarFormEnCache);
+
+// --- FIN DE LISTENERS MOVIDOS ---
+
+// Carga inicial
+const autoDNI = localStorage.getItem('autoValidateDNI');
+const autoType = localStorage.getItem('autoValidateType');
+
+if (autoDNI && autoType) {
+localStorage.removeItem('autoValidateDNI');
+localStorage.removeItem('autoValidateType');
+
+document.getElementById('dni-input').value = autoDNI;
+document.getElementById('tipoInscripto').value = autoType;
+
+setTimeout(() => {
+document.getElementById('btn-validar').click();
+}, 100);
+}
+
+
+if (document.querySelectorAll('.autorizado-nombre').length === 0) {
+addAutorizadoCampos();
+}
+
+cargarFormDesdeCache();
+toggleEspecifique('practicaDeporte', 'especifiqueDeporte');
+toggleEspecifique('tieneEnfermedad', 'especifiqueEnfermedad');
+toggleEspecifique('esAlergico', 'especifiqueAlergia');
+toggleTransferenciaInfo();
+toggleCuotasInfo();
 
 }); // <-- FIN DEL DOMContentLoaded
 </script>

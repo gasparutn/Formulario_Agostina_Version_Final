@@ -301,11 +301,16 @@ function registrarDatos(datos) {
   }
 }
 
+// =========================================================
+// (Solo necesitas reemplazar esta función en tu Código.js)
+// =========================================================
+
 /**
-* (MODIFICADO)
+* (MODIFICADO - PETICIÓN 1)
 * - Cambia el estado de pago a "Pagado" para pagos totales.
 * - Actualiza el estado de cuotas individuales.
 * - Devuelve el estado de pago actualizado al cliente.
+* - ¡¡ACTUALIZADO CON TU NUEVO MENSAJE FINAL!!
 */
 function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
   const lock = LockService.getScriptLock();
@@ -345,6 +350,10 @@ function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
       hoja.getRange(fila, COL_PAGADOR_NOMBRE_MANUAL).setValue(datosExtras.nombrePagador); // AN (40)
       hoja.getRange(fila, COL_PAGADOR_DNI_MANUAL).setValue(datosExtras.dniPagador); // AO (41)
 
+      // (NUEVO MENSAJE - PETICIÓN 1)
+      const mensajeFinalCompleto = `¡Inscripción completa!!!<br>Estimada familia, puede validar nuevamente con el dni y acceder a modificar datos de inscrpición en caso de que lo requiera.`;
+
+
       switch (tipoComprobante) {
         case 'total_mp': // Mantenido por retrocompatibilidad
         case 'mp_total': // (a)
@@ -355,7 +364,9 @@ function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
           hoja.getRange(fila, COL_ESTADO_PAGO).setValue("Pagado");
           // También marcar las 3 cuotas como pagadas (informativo)
           hoja.getRange(fila, COL_CUOTA_1, 1, 3).setValues([["Pagada", "Pagada", "Pagada"]]);
-          mensajeExito = "¡Pago total registrado con éxito! Su inscripción está completa.";
+          
+          // (MODIFICADO - PETICIÓN 1)
+          mensajeExito = mensajeFinalCompleto;
           estadoFinal = "Pagado";
           break;
         
@@ -396,7 +407,9 @@ function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
 
         if (pagadas >= cantidadCuotasRegistrada) {
           hoja.getRange(fila, COL_ESTADO_PAGO).setValue("Pagado");
-          mensajeExito = `¡Felicidades! Se registró la Cuota ${tipoComprobante.slice(-1)}. Ha completado las ${cantidadCuotasRegistrada} cuotas. Su inscripción está completa.`;
+          // (MODIFICADO - PETICIÓN 1)
+          let cuotaNum = tipoComprobante.slice(-1); // Extrae el '1', '2' o '3'
+          mensajeExito = `¡Felicidades! Se registró la Cuota ${cuotaNum}. Ha completado las ${cantidadCuotasRegistrada} cuotas.<br>${mensajeFinalCompleto}`;
           estadoFinal = "Pagado";
         } else {
           const pendientes = cantidadCuotasRegistrada - pagadas;
@@ -422,7 +435,6 @@ function subirComprobanteManual(dni, fileData, tipoComprobante, datosExtras) {
     lock.releaseLock();
   }
 }
-
 /**
  * (NUEVA FUNCIÓN)
  * Permite a un usuario ya registrado editar campos específicos.
@@ -704,9 +716,17 @@ function validarAcceso(dni, tipoInscripto) {
         }
       }
 
+      // =========================================================
+      // --- ¡¡INICIO DE LA CORRECCIÓN (FALLA 1)!! ---
+      // (Esta es la lógica que faltaba en la traza anterior)
+      // =========================================================
       if (tipoInscripto === 'nuevo') {
         return { status: 'ERROR_TIPO_NUEVO', message: "El DNI se encuentra en nuestra base de datos. Por favor, seleccione 'Soy Inscripto Anterior' y valide nuevamente." };
       }
+      // =========================================================
+      // --- ¡¡FIN DE LA CORRECCIÓN!! ---
+      // =========================================================
+
 
       const rowIndex = celdaEncontrada.getRow();
       const fila = hojaBusqueda.getRange(rowIndex, COL_HABILITADO_BUSQUEDA, 1, 10).getValues()[0];
@@ -777,9 +797,9 @@ function validarAcceso(dni, tipoInscripto) {
 
 
 /**
-* (MODIFICADO)
-* Eliminada toda la lógica de 'crearPreferenciaDePago' (Mercado Pago).
-* Añadido 'datos' al response para la función de Editar.
+* (MODIFICADO - ¡¡ESTA ES LA CORRECCIÓN IMPORTANTE!!)
+* - (FALLA 1) Añadida lógica para RE-EVALUAR el estado de pago si los comprobantes fueron borrados.
+* - (FALLA 2 - Bug de Validación) Movida la lógica de validación de TIPO al INICIO de la función.
 */
 function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio, estado, tipoInscripto, pagoTotalMPVisible) { // <-- Acepta B24
   const rangoFila = hojaRegistro.getRange(filaRegistro, 1, 1, hojaRegistro.getLastColumn()).getValues()[0];
@@ -788,6 +808,28 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
   const metodoPago = rangoFila[COL_METODO_PAGO - 1];
   const nombreRegistrado = rangoFila[COL_NOMBRE - 1] + ' ' + rangoFila[COL_APELLIDO - 1];
   const estadoInscripto = rangoFila[COL_ESTADO_NUEVO_ANT - 1];
+
+  // =========================================================
+  // --- ¡¡INICIO DE LA CORRECCIÓN (FALLA 1 - Bug de Validación)!! ---
+  // =========================================================
+  const estadoInscriptoTrim = estadoInscripto ? String(estadoInscripto).trim().toLowerCase() : "";
+  
+  // Si el estado guardado es "Anterior" pero el usuario seleccionó "Nuevo"
+  if (estadoInscriptoTrim.includes('anterior') && tipoInscripto !== 'anterior') {
+    return { status: 'ERROR', message: 'Este DNI ya está registrado como "Inscripto Anterior". Por favor, seleccione esa opción y valide de nuevo.' };
+  }
+  // Si el estado guardado es "Nuevo" pero el usuario seleccionó "Anterior"
+  if (estadoInscriptoTrim.includes('nuevo') && tipoInscripto !== 'nuevo') {
+    return { status: 'ERROR', message: 'Este DNI ya está registrado como "Nuevo Inscripto". Por favor, seleccione esa opción y valide de nuevo.' };
+  }
+  // Si el estado guardado es "Pre-Venta" pero el usuario seleccionó otra cosa
+  if (estadoInscriptoTrim.includes('pre-venta') && tipoInscripto !== 'preventa') {
+    return { status: 'ERROR', message: 'Este DNI está registrado como "Pre-Venta". Por favor, seleccione esa opción y valide de nuevo.' };
+  }
+  // =========================================================
+  // --- ¡¡FIN DE LA CORRECCIÓN (FALLA 1)!! ---
+  // =========================================================
+
 
   // (NUEVO) Preparar datos para la función de Editar
   const datosParaEdicion = {
@@ -802,21 +844,10 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
     urlCertificadoAptitud: rangoFila[COL_APTITUD_FISICA - 1] || ''
   };
 
-  const estadoInscriptoTrim = estadoInscripto ? String(estadoInscripto).trim() : "";
 
-  if (estadoInscriptoTrim.toLowerCase().includes('hermano/a') && !metodoPago) { 
-     const estadoTrimLower = estadoInscriptoTrim.toLowerCase();
-
-    if (estadoTrimLower.includes('nuevo') && tipoInscripto !== 'nuevo') {
-      return { status: 'ERROR', message: 'Usted está registrado como "Nuevo Hermano/a". Por favor, seleccione "Soy Nuevo Inscripto" para validar.' };
-    }
-    if (estadoTrimLower.includes('anterior') && tipoInscripto !== 'anterior') {
-      return { status: 'ERROR', message: 'Usted está registrado como "Anterior Hermano/a". Por favor, seleccione "Soy Inscripto Anterior" para validar.' };
-    }
-    if (estadoTrimLower.includes('pre-venta') && tipoInscripto !== 'preventa') {
-      return { status: 'ERROR', message: 'Usted está registrado como "Pre-venta Hermano/a". Por favor, seleccione "Soy Inscripto PRE-VENTA" para validar.' };
-    }
-
+  // Lógica para Hermanos Incompletos
+  if (estadoInscriptoTrim.includes('hermano/a') && !metodoPago) { 
+     // (La validación de tipoInscripto ya se hizo arriba)
     let faltantes = [];
     if (!rangoFila[COL_COLEGIO_JARDIN - 1]) faltantes.push('Colegio / Jardín');
     if (!rangoFila[COL_PRACTICA_DEPORTE - 1]) faltantes.push('Practica Deporte');
@@ -826,12 +857,10 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
     if (!rangoFila[COL_JORNADA - 1]) faltantes.push('Jornada');
     if (!rangoFila[COL_SOCIO - 1]) faltantes.push('Es Socio'); 
     if (!rangoFila[COL_METODO_PAGO - 1]) faltantes.push('Método de Pago');
-
     if (!rangoFila[COL_EMAIL - 1]) faltantes.push('Email');
     if (!rangoFila[COL_ADULTO_RESPONSABLE_1 - 1]) faltantes.push('Responsable 1');
     if (!rangoFila[COL_PERSONAS_AUTORIZADAS - 1]) faltantes.push('Personas Autorizadas');
     
-    // (MODIFICADO) Combinar datos de edición con los datos existentes
      const datosCompletos = {
       ...datosParaEdicion,
       nombre: rangoFila[COL_NOMBRE - 1],
@@ -849,8 +878,7 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
       datos: datosCompletos,
       jornadaExtendidaAlcanzada: estado.jornadaExtendidaAlcanzada,
       tipoInscripto: estadoInscripto,
-      // pagoTotalHabilitado: pagoTotalHabilitado, // Eliminado
-      pagoTotalMPVisible: pagoTotalMPVisible // <-- Añadido B24
+      pagoTotalMPVisible: pagoTotalMPVisible
     };
   }
 
@@ -859,7 +887,46 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
   const cantidadCuotasRegistrada = parseInt(rangoFila[COL_CANTIDAD_CUOTAS - 1]) || 0;
   let proximaCuotaPendiente = null;
 
-  if (String(estadoPago).includes('Pagado')) {
+  // =========================================================
+  // --- ¡¡INICIO DE LA CORRECCIÓN (FALLA 1 - Estado Pegajoso)!! ---
+  // =========================================================
+  let estadoPagoActual = estadoPago;
+  
+  // Leer todos los comprobantes
+  const c_total = rangoFila[COL_COMPROBANTE_MANUAL_TOTAL_EXT - 1]; // AQ
+  const c_c1 = rangoFila[COL_COMPROBANTE_MANUAL_CUOTA1 - 1];      // AR
+  const c_c2 = rangoFila[COL_COMPROBANTE_MANUAL_CUOTA2 - 1];      // AS
+  const c_c3 = rangoFila[COL_COMPROBANTE_MANUAL_CUOTA3 - 1];      // AT
+  const tieneComprobantes = c_total || c_c1 || c_c2 || c_c3;
+
+  // Si el estado es "En revisión" o "Pagado", PERO el usuario borró todos los comprobantes...
+  if (!tieneComprobantes && (String(estadoPagoActual).includes('En revisión') || String(estadoPagoActual).includes('Pagado'))) {
+    Logger.log(`Corrección de estado para DNI ${dniLimpio}: El estado era '${estadoPagoActual}' pero no hay comprobantes. Reseteando a 'Pendiente'.`);
+    
+    // Resetear el estado al original "Pendiente"
+    if (metodoPago === 'Pago en Cuotas') {
+      estadoPagoActual = `Pendiente (${cantidadCuotasRegistrada} Cuotas)`;
+    } else if (metodoPago === 'Transferencia') {
+      estadoPagoActual = "Pendiente (Transferencia)";
+    } else if (metodoPago === 'Pago Efectivo (Adm del Club)') {
+      estadoPagoActual = "Pendiente (Efectivo)";
+    } else {
+      // Fallback genérico
+      estadoPagoActual = "Pendiente (Transferencia)"; 
+    }
+    
+    // Actualizar la hoja de cálculo con el estado corregido
+    hojaRegistro.getRange(filaRegistro, COL_ESTADO_PAGO).setValue(estadoPagoActual);
+    // Limpiar también las cuotas individuales por si acaso
+    hojaRegistro.getRange(filaRegistro, COL_CUOTA_1, 1, 3).clearContent();
+  }
+  // =========================================================
+  // --- ¡¡FIN DE LA CORRECCIÓN!! ---
+  // =========================================================
+
+
+  // Ahora, el resto de la función usa 'estadoPagoActual' (que está corregido)
+  if (String(estadoPagoActual).includes('Pagado')) {
     return {
       status: 'REGISTRO_ENCONTRADO',
       message:  `✅ El DNI  ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO y la inscripción está PAGADA.`,
@@ -872,8 +939,7 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
     };
   }
 
-  if (String(estadoPago).includes('En revisión')) {
-     // (MODIFICADO) Revisar si es revisión de cuotas o total
+  if (String(estadoPagoActual).includes('En revisión')) {
      let mensajeRevision = `⚠️ El DNI ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO. Su pago está "En revisión".`;
      if (metodoPago === 'Pago en Cuotas') {
         const [c1, c2, c3] = hojaRegistro.getRange(filaRegistro, COL_CUOTA_1, 1, 3).getValues()[0];
@@ -881,7 +947,7 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
         if (pagadas < cantidadCuotasRegistrada) {
           const pendientes = cantidadCuotasRegistrada - pagadas;
           mensajeRevision = `⚠️ El DNI ${dniLimpio} (${nombreRegistrado}) ya se encuentra REGISTRADO. Se está revisando su último pago de cuota. Le quedan ${pendientes} cuota${pendientes > 1 ? 's' : ''} pendiente${pendientes > 1 ? 's' : ''}.`;
-          proximaCuotaPendiente = `C${pagadas + 1}`; // Asumir que la próxima es la pendiente
+          proximaCuotaPendiente = `C${pagadas + 1}`;
         }
      }
 
@@ -891,14 +957,12 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
       adeudaAptitud: adeudaAptitud,
       cantidadCuotas: cantidadCuotasRegistrada,
       metodoPago: metodoPago,
-      proximaCuotaPendiente: proximaCuotaPendiente, // Puede ser null o la próxima cuota
+      proximaCuotaPendiente: proximaCuotaPendiente, 
       pagoTotalMPVisible: pagoTotalMPVisible,
-      datos: datosParaEdicion // (NUEVO) Enviar datos para editar
+      datos: datosParaEdicion
     };
   }
   
-  // (MODIFICADO) Se elimina el 'try...catch' que intentaba crear un link de MP
-  // y se unifica la lógica.
   
   if (metodoPago === 'Pago en Cuotas') {
       for (let i = 1; i <= cantidadCuotasRegistrada; i++) {
@@ -906,12 +970,10 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
         let cuota_status = rangoFila[colCuota - 1];
         if (!cuota_status || (!cuota_status.toString().includes("Pagada") && !cuota_status.toString().includes("Notificada"))) {
           proximaCuotaPendiente = `C${i}`;
-          break; // Encontró la próxima cuota pendiente
+          break; 
         }
       }
        if (proximaCuotaPendiente == null && cantidadCuotasRegistrada > 0) {
-         // Si no encontró cuota pendiente Y era un registro de cuotas, están todas pagas
-         // (Aunque el estado general 'Pagado' ya debería haberlo atrapado)
           return {
             status: 'REGISTRO_ENCONTRADO',
             message:  `✅ El DNI  ${dniLimpio} (${nombreRegistrado}) ya completó todas las cuotas.`,
@@ -934,7 +996,7 @@ function gestionarUsuarioYaRegistrado(ss, hojaRegistro, filaRegistro, dniLimpio,
     metodoPago: metodoPago,
     proximaCuotaPendiente: proximaCuotaPendiente || 'subir_comprobante_manual',
     pagoTotalMPVisible: pagoTotalMPVisible,
-    datos: datosParaEdicion // (NUEVO) Enviar datos para editar
+    datos: datosParaEdicion
   };
 }
 

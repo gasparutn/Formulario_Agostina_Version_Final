@@ -182,10 +182,10 @@ function actualizarDatosHermano(datos) {
 /**
 * (PASO 2 - MODIFICADO)
 * Eliminada toda la lógica de Mercado Pago.
-* Ahora solo envía confirmación para Efectivo, Transferencia o Cuotas (que son manuales).
-* (NUEVA MODIFICACIÓN) Eliminada la llamada a enviarEmailConfirmacion.
+* (MODIFICADO) Renombrada de 'paso2_crearPagoYEmail' a 'paso2_procesarPostRegistro'.
+* (MODIFICADO) Eliminada la llamada a enviarEmailConfirmacion (Petición 3).
 */
-function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null) {
+function paso2_procesarPostRegistro(datos, numeroDeTurno, hermanosRegistrados = null) {
   try {
     const hermanos = hermanosRegistrados || [];
     const dniRegistrado = datos.dni;
@@ -201,19 +201,19 @@ function paso2_crearPagoYEmail(datos, numeroDeTurno, hermanosRegistrados = null)
       message = `¡Registro guardado con éxito!!. Contacte a la administración para coordinar el pago.`;
     }
 
-    // (MODIFICADO) Email automático desactivado.
+    // (MODIFICADO) Email automático desactivado (Petición 3).
     // enviarEmailConfirmacion(datos, numeroDeTurno, null); // vive en Código.js
     Logger.log(`(Paso 2) Registro exitoso para DNI ${dniRegistrado}. Método: ${datos.metodoPago}. Email desactivado.`);
 
     return { 
-      status: 'OK_EFECTIVO', // Usamos el status de éxito manual
+      status: 'OK_EFECTIVO', // Usamos el status de éxito manual para todos los casos
       message: message, 
       hermanos: hermanos,
       dniRegistrado: dniRegistrado 
     };
 
   } catch (e) {
-    Logger.log("Error en paso2_crearPagoYEmail: " + e.message);
+    Logger.log("Error en paso2_procesarPostRegistro: " + e.message);
     return { 
       status: 'ERROR', 
       message: 'Error general en el servidor (Paso 2): ' + e.message, 
