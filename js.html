@@ -138,6 +138,7 @@ function handlePagoFailure(error) {
 // =========================================================
 // --- ¡¡INICIO DE LA LÓGICA DE VALIDACIÓN!! ---
 // (MODIFICADO) Implementa Petición 2 (Botón Editar)
+// (MODIFICADO POR USUARIO) Lógica de hermanos
 // =========================================================
 
 function handleValidationSuccess(response) {
@@ -163,11 +164,14 @@ function handleValidationSuccess(response) {
   } else if (response.status === 'OK_PREVENTA' || response.status === 'OK' || response.status === 'OK_NUEVO') {
     document.getElementById('esHermanoCompletando').value = "false";
     const seccionHermanos = document.getElementById('seccion-hermanos');
-    if (response.status === 'OK_PREVENTA') {
-      if (seccionHermanos) seccionHermanos.style.display = 'none';
-    } else {
-      if (seccionHermanos) seccionHermanos.style.display = 'block';
+
+    // --- (INICIO DE MODIFICACIÓN SOLICITADA) ---
+    // Se muestra la sección de hermanos para TODOS los casos de éxito (Nuevo, Anterior y Pre-Venta)
+    if (seccionHermanos) {
+      seccionHermanos.style.display = 'block';
     }
+    // --- (FIN DE MODIFICACIÓN SOLICITADA) ---
+
     iniciarTemporizador(response);
 
   } else if (response.status === 'REGISTRO_ENCONTRADO') {
@@ -1245,10 +1249,15 @@ function addHermanoCampos() {
   div.className = 'fila-dinamica';
   const uniqueId = 'hermano_edad_' + container.children.length;
 
+  // --- (INICIO DE MODIFICACIÓN) ---
+  // Agregados 'hermano-obrasocial' y 'hermano-colegio'
   div.innerHTML = `
   <div class="hermano-campos">
   <input type="text" class="hermano-nombre form-cache" placeholder="Nombre Hermano/a" required>
   <input type="text" class="hermano-apellido form-cache" placeholder="Apellido Hermano/a" required>
+
+  <input type="text" class="hermano-obrasocial form-cache" placeholder="Obra Social Hermano/a" required>
+  <input type="text" class="hermano-colegio form-cache" placeholder="Colegio/Jardín Hermano/a" required>
 
   <input type="tel" class="hermano-dni form-cache" placeholder="DNI Hermano/a (8 dígitos)" maxlength="8" pattern="[0-9]{8}" inputmode="numeric" required title="El DNI debe tener exactamente 8 dígitos numéricos.">
   <input type="date" class="hermano-fechanac form-cache" required oninput="calcularYMostrarEdad(this.value, '${uniqueId}')" min="2010-01-01" max="2023-12-31">
@@ -1260,6 +1269,7 @@ function addHermanoCampos() {
   </div>
   <button type="button" class="btn-remover" onclick="removerFila(this)">X</button>
   `;
+  // --- (FIN DE MODIFICACIÓN) ---
   container.appendChild(div);
 }
 
@@ -1297,21 +1307,29 @@ function guardarFormEnCache() {
       }
     }
 
+    // --- (INICIO DE MODIFICACIÓN) ---
+    // Agregados 'obrasSocialesHermano' y 'colegiosHermano'
     data.hermanos = [];
     const nombresHermano = document.querySelectorAll('.hermano-nombre');
     const apellidosHermano = document.querySelectorAll('.hermano-apellido');
+    const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial'); // NUEVO
+    const colegiosHermano = document.querySelectorAll('.hermano-colegio'); // NUEVO
     const dnisHermano = document.querySelectorAll('.hermano-dni');
     const fechasNacHermano = document.querySelectorAll('.hermano-fechanac');
+    
     for (let i = 0; i < dnisHermano.length; i++) {
       if (nombresHermano[i].value || dnisHermano[i].value) { 
         data.hermanos.push({
           n: nombresHermano[i].value,
           a: apellidosHermano[i].value,
+          os: obrasSocialesHermano[i].value, // NUEVO
+          c: colegiosHermano[i].value,     // NUEVO
           d: dnisHermano[i].value,
           f: fechasNacHermano[i].value
         });
       }
     }
+    // --- (FIN DE MODIFICACIÓN) ---
 
     localStorage.setItem(CACHE_KEY, JSON.stringify(data));
 
@@ -1349,10 +1367,15 @@ function cargarFormDesdeCache() {
     if (data.hermanos && data.hermanos.length > 0) {
       const hermContainer = document.getElementById('hermanos-container');
       hermContainer.innerHTML = '';
+      
+      // --- (INICIO DE MODIFICACIÓN) ---
+      // Agregados '.hermano-obrasocial' y '.hermano-colegio'
       data.hermanos.forEach(herm => {
         addHermanoCampos(); // (Corrección: debe ser addHermanoCampos)
         hermContainer.querySelector('.hermano-nombre:last-of-type').value = herm.n || '';
         hermContainer.querySelector('.hermano-apellido:last-of-type').value = herm.a || '';
+        hermContainer.querySelector('.hermano-obrasocial:last-of-type').value = herm.os || ''; // NUEVO
+        hermContainer.querySelector('.hermano-colegio:last-of-type').value = herm.c || '';     // NUEVO
         hermContainer.querySelector('.hermano-dni:last-of-type').value = herm.d || '';
         const fechaInput = hermContainer.querySelector('.hermano-fechanac:last-of-type');
         fechaInput.value = herm.f || '';
@@ -1366,6 +1389,7 @@ function cargarFormDesdeCache() {
           }
         }
       });
+      // --- (FIN DE MODIFICACIÓN) ---
     }
 
     calcularYMostrarEdad();

@@ -205,8 +205,8 @@ function registrarDatos(datos) {
       for (const hermano of datos.hermanos) {
         proximoTurnoHermano++;
 
-        const dniHermano = limpiarDNI(hermano.dni);
-        if (!dniHermano || !hermano.nombre || !hermano.apellido || !hermano.fechaNac) continue;
+       const dniHermano = limpiarDNI(hermano.dni);
+      if (!dniHermano || !hermano.nombre || !hermano.apellido || !hermano.fechaNac || !hermano.obraSocial || !hermano.colegio) continue;
 
         if (hermano.fechaNac < "2010-01-01" || hermano.fechaNac > "2023-12-31") {
           return { status: 'ERROR', message: `La fecha de nacimiento del hermano/a (${hermano.nombre}) debe estar entre 01/01/2010 y 31/12/2023.` };
@@ -242,35 +242,39 @@ function registrarDatos(datos) {
           tipo: tipoHermano
         });
 
-        const edadCalcHermano = calcularEdad(hermano.fechaNac);
-        const textoGrupoHermano = `GRUPO ${edadCalcHermano.anos} AÑOS`;
-        const fechaObjHermano = new Date(hermano.fechaNac);
-        const fechaFmtHermano = Utilities.formatDate(fechaObjHermano, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+       const edadCalcHermano = calcularEdad(hermano.fechaNac);
+      const textoGrupoHermano = `GRUPO ${edadCalcHermano.anos} AÑOS`;
+      const fechaObjHermano = new Date(hermano.fechaNac);
+      const fechaFmtHermano = Utilities.formatDate(fechaObjHermano, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd');
 
         const filaHermano = [
-          proximoTurnoHermano, new Date(), '', estadoHermano, // A-D
-          datos.email, hermano.nombre, hermano.apellido, // E-G
-          fechaFmtHermano, textoGrupoHermano, dniHermano, // H-J
-          datos.obraSocial, '', // K-L
-          datos.adultoResponsable1, datos.dniResponsable1, telResp1, // M-O
-          datos.adultoResponsable2, telResp2, // P-Q
-          datos.personasAutorizadas, // R
-          '', '', '', '', '', '', // S-X
-          '', '', // Y-Z
-          '', '', // AA-AB
-          '', // AC
-          0, // AD
-          '', '', '', 0, // AE-AH
-          'Pendiente (Hermano)', // AI
-          0, // AJ
-          '', '', '', // AK-AM
-          '', '', // AN-AO
-          '', // AP
-          '', '', '', '', // AQ-AT
-          false, // AU
-          nuevoNumeroDeTurno // AV
-        ];
-        hojaRegistro.appendRow(filaHermano);
+        proximoTurnoHermano, new Date(), '', estadoHermano, // A-D
+        datos.email, hermano.nombre, hermano.apellido, // E-G
+        fechaFmtHermano, textoGrupoHermano, dniHermano, // H-J
+        hermano.obraSocial, hermano.colegio, // K-L (MODIFICADO)
+        datos.adultoResponsable1, datos.dniResponsable1, telResp1, // M-O
+        datos.adultoResponsable2, telResp2, // P-Q
+        datos.personasAutorizadas, // R
+    '', '', '', '', '', '', // S-X
+        '', '', // Y-Z
+        '', '', // AA-AB
+        '', // AC
+        0, // AD
+        '', '', '', 0, // AE-AH
+        'Pendiente (Hermano)', // AI
+        0, // AJ
+        '', '', '', // AK-AM
+        '', '', // AN-AO
+        '', // AP
+        '', '', '', '', // AQ-AT
+        false, // AU
+        nuevoNumeroDeTurno // AV
+      ];
+      // --- (FIN DE MODIFICACIÓN) ---
+      
+      hojaRegistro.appendRow(filaHermano);
+      // ... (código de formato de fila de hermano) ...
+   
         const filaHermanoInsertada = hojaRegistro.getLastRow();
 
         aplicarColorGrupo(hojaRegistro, filaHermanoInsertada, textoGrupoHermano, hojaConfig);

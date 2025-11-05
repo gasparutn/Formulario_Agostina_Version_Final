@@ -89,6 +89,7 @@ guardarFormEnCache();
 // (ACTUALIZADO - PUNTO 35 y Anti-Duplicados)
 // (NUEVO - REQ 2) Modificada función 'validationFail'
 // (ACTUALIZADO - PUNTO 38) Validación de Fechas
+// (MODIFICADO POR USUARIO) Agregados campos de hermanos
 // =========================================================
 document.getElementById('registroForm').addEventListener('submit', function(e) {
 e.preventDefault();
@@ -256,6 +257,10 @@ formDataObject.personasAutorizadas = Array.from(nombresAut)
 formDataObject.hermanos = [];
 const nombresHermano = document.querySelectorAll('.hermano-nombre');
 const apellidosHermano = document.querySelectorAll('.hermano-apellido');
+// --- (INICIO DE MODIFICACIÓN) ---
+const obrasSocialesHermano = document.querySelectorAll('.hermano-obrasocial'); // NUEVO
+const colegiosHermano = document.querySelectorAll('.hermano-colegio'); // NUEVO
+// --- (FIN DE MODIFICACIÓN) ---
 const dnisHermanoInputs = document.querySelectorAll('.hermano-dni'); // (Cambiado para .focus())
 const fechasNacHermano = document.querySelectorAll('.hermano-fechanac');
 
@@ -274,6 +279,10 @@ document.querySelectorAll('.hermano-dni-error').forEach(div => div.textContent =
 for (let i = 0; i < dnisHermanoInputs.length; i++) {
 const nombre = nombresHermano[i].value.trim();
 const apellido = apellidosHermano[i].value.trim();
+// --- (INICIO DE MODIFICACIÓN) ---
+const obraSocial = obrasSocialesHermano[i].value.trim(); // NUEVO
+const colegio = colegiosHermano[i].value.trim();         // NUEVO
+// --- (FIN DE MODIFICACIÓN) ---
 const dniInput = dnisHermanoInputs[i]; // Input element
 const dni = dniInput.value.trim();
 const fechaNacInputHermano = fechasNacHermano[i]; // Input element
@@ -283,8 +292,10 @@ const fechaNac = fechaNacInputHermano.value;
 // Encontrar el div de error específico para este hermano 
 const errorDiv = dniInput.closest('.hermano-campos').querySelector('.hermano-dni-error');
 
+// --- (INICIO DE MODIFICACIÓN) ---
 // Validar solo si hay algún dato, para no forzar hermanos opcionales
-if (nombre || apellido || dni || fechaNac) {
+if (nombre || apellido || dni || fechaNac || obraSocial || colegio) {
+// --- (FIN DE MODIFICACIÓN) ---
 
 // Validar DNI primero
 if (!/^[0-9]{8}$/.test(dni)) {
@@ -306,11 +317,15 @@ dnisEnRegistro.add(dni); // DNI válido y único, agregarlo al Set
 }
 // (FIN VALIDACIÓN ANTI-DUPLICADOS)
 
+// --- (INICIO DE MODIFICACIÓN) ---
 // Validar que el resto de campos estén llenos si se empezó a llenar
 // (Estos errores SÍ detienen el submit porque son más fáciles de arreglar)
 if (!nombre) return validationFail('Error: Debe completar el Nombre del hermano/a.', nombresHermano[i]);
 if (!apellido) return validationFail('Error: Debe completar el Apellido del hermano/a.', apellidosHermano[i]);
+if (!obraSocial) return validationFail('Error: Debe completar la Obra Social del hermano/a.', obrasSocialesHermano[i]); // NUEVO
+if (!colegio) return validationFail('Error: Debe completar el Colegio/Jardín del hermano/a.', colegiosHermano[i]);     // NUEVO
 if (!fechaNac) return validationFail('Error: Debe completar la Fecha de Nacimiento del hermano/a.', fechaNacInputHermano);
+// --- (FIN DE MODIFICACIÓN) ---
 
 // (MODIFICADO - PUNTO 38) Validación Edad Hermano
 if (fechaNac < "2010-01-01" || fechaNac > "2023-12-31") {
@@ -319,12 +334,16 @@ return validationFail('Error: La fecha de nacimiento del hermano/a (' + nombre +
 
 
 // Si todo es válido, agregarlo
+// --- (INICIO DE MODIFICACIÓN) ---
 formDataObject.hermanos.push({
 nombre: nombre,
 apellido: apellido,
+obraSocial: obraSocial, // NUEVO
+colegio: colegio,     // NUEVO
 dni: dni,
 fechaNac: fechaNac
 });
+// --- (FIN DE MODIFICACIÓN) ---
 }
 }
 // --- (FIN MODIFICACIÓN PUNTO 35 y Anti-Duplicados) ---
